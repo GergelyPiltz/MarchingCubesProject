@@ -1,0 +1,134 @@
+
+DISCORD PINNED MESSAGES cubes without 3d models
+Reduce the lookup table to a not readable but faster data structure (Sebastian ?Lague?)
+must start writing the optimization part. 
+
+
+
+class diagrams. the chunk is a class.
+objects, like the chunks and the player and so on
+
+define sandbox game and connection with voxels
+go into terrarias procedural generation, 2D -> 3D
+
+how does forest works? predefined map but dynamic building
+
+scrap mechanic - free moving voxel groups vs static positions like minecraft
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
+-so basically an intro, very general, why its good to work in the videogame industry and such
+-short description of the whole project, and in what chapters what will be explored
+-some things that serve as important background information to understand what i did and how
+so far its 1/3 of the whole paper
+-a proper plan of the project with diagrams and requirements and such
+-implementation, explanation of important modules, like the marching cubes part and the pseudorandom generation can fit in here
+-testing, what and how
+-maybe some tutorial for the game for the "players"
+-one page of general why it was good why it wasnt, how it could be improved, what did i learn
+and the whole thing should be around 50 pages
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
+structure:
+general description of the game
+voxel games
+procedurally generated maps
+minecraft?
+"true" infine maps, computational limitations
+fake infinite maps (factorio), it ends at a point. that video for proof that the end of the map can be reached by a player
+intro to procedurally generated terrain
+why marching cubes !!!!!!!!!!
+marching cubes explanation
+basics of marching cubes
+description of a triangle mesh
+shared vertices between triangles
+improvement on marching cubes (operations required on given data tables)
+procedural generation explanation
+terraria, 2d procedural
+minecraft, 3d prucedural
+why that method for procedural generation
+perlin noise in 2D 
+	multiplying the y value with a noise value to get the terrain height in that column
+perlin noise in 3D
+	multiplying the value with a 3D noise value
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
+#Marchin cubes section#
+-What is marching cubes? (A general intro, no deep explanation)
+-Why is the marching cubes algorithm useful?
+-In which part of the market can the marching cubes algorithm be found?
+-How does the marching cubes algorithm works? (Explanation goes here, mention the lookup table)
+-How does the look up table works (Look out for plagiarism, mention the original creator of the table you are using)
+-How does your implementation of the algorithm works?
+-Optimization in marching cubes.
+-Blocky vs smooth interpolation of the "cubes"
+
+#Procedural Generation#
+-What is procedural generation?
+-History of Procedural generation? (Maybe have a look at games that used procedural generation (like the game called rouge))
+-What can procedural generation be used for? (In games and outside of games)
+-The kinds of Procedural algorithms / noises available for a programmer. (Worley noise, Perlin noise, Simplex noise, Linear congruential generator, etc), In this section the use of 1D,2D and 3D noise can be explained.
+-How did you use procedural generation in your project?
+
+#Your project#
+-What is the goal of your project?
+-What assets did you use for the creation of the project? (Unity, C#,etc) Look out for plagiarism.
+-During the creation of the project, what values were obtained.
+-Since it's a game, what is the goal of the game, how procedural generation integrates with this idea?
+-A general description of your game in this section.
+
+#Information gained from the creation of your paper#
+-Define why marching cubes is a good algorithm to use.
+-Define why pseudo random based procedural generation and seed based random number generators are important.
+-Create a section of description about why did you choose to create a game, and what purpose this game servers relative to your course of study.
+I think this is a good starter. But always feel free to look up already existing research papers on your topic and reference information from their papers (according to the plagiarism rules of your institution!), as research work is both good to fill up otherwise empty parts of your paper, and it shows that you can do research on the topic of your interest.
+DarkFox — 03/29/2024 9:54 PM
+Also, since you are talking about marching cubes you can also may go slightly into 3D rendering, as marching cubes is a mesh generation technique. Like a short introduction on how the rasterization 3d rendering or Wikipedia works or how can we defined a mesh in this context (what is a mesh, what is a triangle, what is a edge, what are vertices). This is a far fetch, but you may touch on the rendering pipeline as well, but this is a long shot compared to what you are doing. 
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#A projekt#
+-Mi a projekt célja?
+-A játék általános leírása.
+-Mivel játékról van szó, mi a játék célja, hogyan illeszkedik a procedurális generálás ebbe a témába?
+-Felhasznált eszközök (Unity, C# stb.)
+-A projekt megalkotása során milyen új ismeretekre tettem szert.
+
+#Játék alapmechanikájának kiválasztása
+-Voxel alapú játékok tanulmányozása
+-Milyen technológiákat alkalmaznak?
+ >Terraria?
+ >Minecraft?
+-Miért egy jó választás a Marching Cubes
+ >Előnyök/hátrányok
+ >precizitás, kinézet
+-Kockás vs sima interpoláció.
+
+#Marching Cubes szakasz#
+-Mi az a Marching Cubes algoritmus? (Általános bevezető, mély magyarázat nélkül)
+-Miért hasznos a Marching Cubes algoritmus?
+-A piac melyik részén található a Marching Cubes algoritmus?
+-Hogyan működik a Marching Cubes algoritmus? (mélyreható kifejtés)
+-Algoritmus implementációja.
+-Kockás vs sima interpoláció.
+
+#Optimalizálás#
+-Triangle Mesh, Vertex...
+-Optimalizálás.
+
+#Procedurális generálás#
+-Mi az a procedurális generálás?
+-A Procedurális generálás története?
+-Mire használható a procedurális generálás? (Játékokban és játékokon kívül)
+-A programozó számára elérhető eljárási algoritmusok / zajok fajtái. (Worley, Perlin, Simplex... stb.)
+-Más játékok implementációi
+ >Terraria?
+ >Minecraft?
+-"Valódi végtelen pályák" (számítási pontosság limitációi) és áll-végtelen pályák (hardcoded limit)
+-Hogyan használatos a procedurális generálás a projektben?
+
+#Az szakdolgozat elkészítése során nyert információk#
+- Miért jó algoritmus a Marching Cubes.
+- Miért fontos a pszeudorandom alapú procedurális generálás és a seed alapú véletlenszám-generátorok.
+----------------------------------------------------------------------------------------------------------------------------------------

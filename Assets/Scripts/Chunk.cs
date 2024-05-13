@@ -48,53 +48,53 @@ public class Chunk
         vertices = new();
         triangles = new();
 
-        CreateTerrainData();
-        CreateMeshData();
-        BuildMesh();
-
+        GenerateTerrain(1, 1, 1, 1, 1);
     }
 
-    void CreateTerrainData()
+    public void GenerateTerrain(int octaves, float starterFrequency, float frequencyIncrease, float starterAmplitude, float amplitudeDecrease)
     {
+        CreateTerrainData(octaves, starterFrequency, frequencyIncrease, starterAmplitude, amplitudeDecrease);
+        CreateMeshData();
+        BuildMesh();
+    }
 
-        float currentHeight;
-        float xCoord;
-        float zCoord;
-        int octaves = 5;
-        float starterFrequency = 0.01f;
-        float frequencyIncrease = 10;
-        float gain = 1; //??????????
-
+    
+    void CreateTerrainData(int octaves, float starterFrequency, float frequencyIncrease, float starterAmplitude, float amplitudeDecrease)
+    {
         for (int x = 0; x < xLength + 1; x++)
             for (int z = 0; z < zLength + 1; z++)
             {
-                float noise;
                 float total = 0f;
+                float frequency = starterFrequency;
+                float amplitude = starterAmplitude;
                 for (int i = 0; i < octaves; i++)
                 {
-                    xCoord = (float)(x + chunkPosition.x) / xLength * (starterFrequency * i * frequencyIncrease);
-                    zCoord = (float)(z + chunkPosition.z) / zLength * (starterFrequency * i * frequencyIncrease);
+                    float xCoord = (float)(x + chunkPosition.x) / 1000f * frequency;
+                    float zCoord = (float)(z + chunkPosition.z) / 1000f * frequency;
 
-                    noise = Mathf.PerlinNoise(xCoord, zCoord);
-                    noise = Mathf.Clamp01(noise);
+                    float sample1 = Mathf.Clamp01(Mathf.PerlinNoise(xCoord, zCoord)); //height
+                    float sample2 = Mathf.Abs((Mathf.Clamp01(Mathf.PerlinNoise(xCoord, zCoord)) - 0.5f) * 2); //valleys
+                    float sample3 = Mathf.Abs((Mathf.Clamp01(Mathf.PerlinNoise(xCoord, zCoord)) - 0.5f) * 2) * -1 + 1; //ridges
+                    float noise = amplitude * Mathf.Pow((sample1 + sample3 /** sample1*/) / 2, 4);
+
+                    //float noise = amplitude * Mathf.Clamp01(Mathf.PerlinNoise(xCoord, zCoord));
+
                     total += noise;
+
+                    frequency *= frequencyIncrease;
+                    amplitude /= amplitudeDecrease;
                 }
-                total /= octaves;
-
-
-
-                currentHeight = yLength * total;
+                float currentHeight = yLength * total;
 
                 for (int y = 0; y < yLength + 1; y++)
                     terrainData[x, y, z] = (float)y - currentHeight;
-
             }
-
     }
-
 
     void CreateMeshData()
     {
+        vertices.Clear();
+        triangles.Clear();
         for (int x = 0; x < xLength; x++)
             for (int y = 0; y < yLength; y++)
                 for (int z = 0; z < zLength; z++)
@@ -277,7 +277,12 @@ public class Chunk
 
         meshFilter.mesh = mesh;
         meshCollider.sharedMesh = mesh;
+    }
 
+    void ClearMeshData()
+    {
+        vertices.Clear();
+        triangles.Clear();
     }
 
 }

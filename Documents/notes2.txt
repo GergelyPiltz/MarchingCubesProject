@@ -1,0 +1,77 @@
+0. bevezetés 1-2 oldal max (játékipar húha XD nagyon jó)
+1. ötlet röviden tömören, felépítés fejezetenként leírás kis tartalomjegyzék szerű 1-2 max
+2. elméketi háttér, nem én munkám de szükséges a megértéshez
+módszertanokról
+random generation algoritmusok
+nem a saját munkám közvetlen része, library include szerű sXD
+
+1/3 a eddig NAGYON MAX
+saját rész innentől jön
+
+követelmények megfogalmazása
+specifikációk
+uml diagrammok, leírás,
+TERV legyen itt
+
+implementálás, modulok bemutatása
+mechanika, marching cubes, random generátor hangsúlyos
+
+tesztelés
+mit tesztelünk hogy teszteljük
+csak az izgalmasabbakat
+
+1-2 oldalas felhasználói könyv használati útmotató
+
+fél 1 oldal kitekintés
+célok, jó volt mi nem volt jó
+
+itt már vége
+irodaoljegyzék melléklet
+
+50 oldal körübelül, 40 alja 70 teteje
+15-30 arány az már jó
+
+
+#A projekt#
+-Mi a projekt célja?
+-A játék általános leírása.
+-Mivel játékról van szó, mi a játék célja, hogyan illeszkedik a procedurális generálás ebbe a témába?
+-Felhasznált eszközök (Unity, C# stb.)
+-A projekt megalkotása során milyen új ismeretekre tettem szert.
+
+#Játék alapmechanikájának kiválasztása
+-Voxel alapú játékok tanulmányozása
+-Milyen technológiákat alkalmaznak?
+ >Terraria?
+ >Minecraft?
+-Miért egy jó választás a Marching Cubes
+ >Előnyök/hátrányok
+ >precizitás, kinézet
+-Kockás vs sima interpoláció.
+
+#Marching Cubes szakasz#
+-Mi az a Marching Cubes algoritmus? (Általános bevezető, mély magyarázat nélkül)
+-Miért hasznos a Marching Cubes algoritmus?
+-A piac melyik részén található a Marching Cubes algoritmus?
+-Hogyan működik a Marching Cubes algoritmus? (mélyreható kifejtés)
+-Algoritmus implementációja.
+-Kockás vs sima interpoláció.
+
+#Optimalizálás#
+-Triangle Mesh, Vertex...
+-Optimalizálás.
+
+#Procedurális generálás#
+-Mi az a procedurális generálás?
+-A Procedurális generálás története?
+-Mire használható a procedurális generálás? (Játékokban és játékokon kívül)
+-A programozó számára elérhető eljárási algoritmusok / zajok fajtái. (Worley, Perlin, Simplex... stb.)
+-Más játékok implementációi
+ >Terraria?
+ >Minecraft?
+-"Valódi végtelen pályák" (számítási pontosság limitációi) és áll-végtelen pályák (hardcoded limit)
+-Hogyan használatos a procedurális generálás a projektben?
+
+#Az szakdolgozat elkészítése során nyert információk#
+- Miért jó algoritmus a Marching Cubes.
+- Miért fontos a pszeudorandom alapú procedurális generálás és a seed alapú véletlenszám-generátorok.
