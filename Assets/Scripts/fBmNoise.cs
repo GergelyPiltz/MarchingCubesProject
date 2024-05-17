@@ -41,29 +41,35 @@ public class fBmNoise : MonoBehaviour
                     float yCoord = (float)y / h * frequency;
 
                     frequency *= frequencyIncrease;
-                    
+
                     //float sample1 = Mathf.PerlinNoise(xCoord, yCoord);
                     //sample1 = Mathf.Clamp01(sample1);
                     //sample1 -= 0.5f;
                     //sample1 *= 2;
                     //sample1 = Mathf.Abs(sample1);
 
-                    float sample2 = Mathf.PerlinNoise(xCoord, yCoord);
-                    sample2 = Mathf.Clamp01(sample2);
-                    sample2 -= 0.5f;
-                    sample2 *= 2;
-                    sample2 = Mathf.Abs(sample2);
-                    sample2 *= -1;
-                    sample2 += 1;
+                    //float sample2 = Mathf.PerlinNoise(xCoord, yCoord);
+                    //sample2 = Mathf.Clamp01(sample2);
+                    //sample2 -= 0.5f;
+                    //sample2 *= 2;
+                    //sample2 = Mathf.Abs(sample2);
+                    //sample2 *= -1;
+                    //sample2 += 1;
 
-                    sample2 *= amplitude;
+                    //sample2 *= amplitude;
 
                     //float sample3 = Mathf.PerlinNoise(xCoord, yCoord);
                     //sample3 = Mathf.Clamp01(sample3);
 
                     //total += ((sample1 + sample2) / 2) * amplitude;
 
-                    total += sample2;
+                    float sample4 = Mathf.PerlinNoise(xCoord, yCoord);
+                    sample4 = Mathf.Clamp01(sample4);
+
+                    float sample5 = Mathf.PerlinNoise(xCoord, yCoord);
+                    sample5 = Mathf.Clamp01(sample5);
+
+                    total += amplitude * ((sample4 + sample5) / 2);
 
                     amplitude /= amplitudeDecrease;
 
