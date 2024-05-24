@@ -6,12 +6,13 @@ using UnityEngine.UIElements;
 
 public class CubeGridPoints : MonoBehaviour
 {
-    public float[,,] terrainData;
-    [SerializeField] int xLength = 10;
-    [SerializeField] int yLength = 10;
-    [SerializeField] int zLength = 10;
-    [SerializeField] int scale = 7;
+    float[,,] terrainData;
+    [SerializeField, Range(4, 20)] int size;
+    [SerializeField, Range(0.5f, 9.5f)] float radius;
+    [SerializeField] AnimationCurve curveX;
+    [SerializeField] AnimationCurve curveZ;
     [SerializeField, Range(0.1f, 1f)] float sphereSize = 0.1f;
+
     float terrainLevel = 0;
 
     //[SerializeField] GameObject sphere;
@@ -20,20 +21,22 @@ public class CubeGridPoints : MonoBehaviour
 
     GameObject[,,] spheres; 
 
-    bool isScriptLoaded = false;
+    bool isStarted = false;
     void Start()
     {
-        CreateTerrain();
+
+        //terrainData = HelperFunctions.GenerateSphereArray(size + 1, radius);
+        terrainData = HelperFunctions.GenerateCurvedArray(size + 1, curveX, curveZ);
 
         blue = Resources.Load("Materials/DEV_Blue", typeof(Material)) as Material;
         green = Resources.Load("Materials/DEV_Green", typeof(Material)) as Material;
 
-        spheres = new GameObject[xLength + 1, yLength + 1, zLength + 1];
+        spheres = new GameObject[size + 1, size + 1, size + 1];
 
         GameObject temp;
-        for (int i = 0; i < xLength + 1; i++)
-            for (int j = 0; j < yLength + 1; j++)
-                for (int k = 0; k < zLength + 1; k++)
+        for (int i = 0; i < size + 1; i++)
+            for (int j = 0; j < size + 1; j++)
+                for (int k = 0; k < size + 1; k++)
                 {
                     temp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                     Destroy(temp.GetComponent<MeshCollider>());
@@ -47,46 +50,25 @@ public class CubeGridPoints : MonoBehaviour
 
                     spheres[i, j, k] = temp;
                 }
-        isScriptLoaded = true;
+        isStarted = true;
     }
 
     private void OnValidate()
     {
-        if (Application.isPlaying && isScriptLoaded)
-            for (int i = 0; i < xLength + 1; i++)
-                for (int j = 0; j < yLength + 1; j++)
-                    for (int k = 0; k < zLength + 1; k++)
+        size = Mathf.Clamp(size, 4, 20);
+        radius = Mathf.Clamp(radius, 0.5f, (float)(size) / 2f - 0.5f);
+
+        if (Application.isPlaying && isStarted)
+            for (int i = 0; i < size + 1; i++)
+                for (int j = 0; j < size + 1; j++)
+                    for (int k = 0; k < size + 1; k++)
                         spheres[i, j, k].transform.localScale = new Vector3(sphereSize, sphereSize, sphereSize);
     }
 
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(transform.position + new Vector3((float)xLength / 2, (float)yLength / 2, (float)zLength / 2), new Vector3(xLength, yLength, zLength));
-    }
-
-    void CreateTerrain()
-    {
-
-        float xCoord;
-        float zCoord;
-        float noiseValue;
-        float currentHeight;
-        terrainData = new float[xLength + 1, yLength + 1, zLength + 1];
-        for (int x = 0; x < xLength + 1; x++)
-            for (int z = 0; z < zLength + 1; z++)
-            {
-                xCoord = (float)x / xLength * scale;
-                zCoord = (float)z / zLength * scale;
-
-                noiseValue = Mathf.PerlinNoise(xCoord, zCoord);
-                noiseValue = Mathf.Clamp(noiseValue, 0, 1);
-
-                currentHeight = yLength * noiseValue;
-
-                for (int y = 0; y < yLength + 1; y++)
-                    terrainData[x, y, z] = (float)y - currentHeight;
-            }
+        Gizmos.DrawWireCube(transform.position + new Vector3((float)size / 2, (float)size / 2, (float)size / 2), new Vector3(size, size, size));
     }
 
     float SampleTerrain(Vector3Int point)

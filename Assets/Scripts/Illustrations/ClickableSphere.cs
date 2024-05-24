@@ -29,4 +29,9 @@ public class ClickableSphere : MonoBehaviour
     {
         return value;
     }
+
+    public void SetSphereSize(float size)
+    {
+        transform.localScale = new Vector3(size, size, size);
+    }
 }

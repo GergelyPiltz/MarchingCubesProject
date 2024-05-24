@@ -1,19 +1,21 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UIElements;
 
+[RequireComponent(typeof(LineRenderer))]
+[RequireComponent(typeof(MeshFilter))]
+[RequireComponent(typeof(MeshRenderer))]
 public class CubeConfigs : MonoBehaviour
 {
+    [SerializeField, Range(0.1f, 1f)] float sphereSize;
     ClickableSphere[] spheres;
 
     List<Vector3> vertices;
     List<int> triangles;
 
     MeshFilter meshFilter;
+    LineRenderer lineRenderer;
 
-
+    bool isStarted = false;
     void Start()
     {
         vertices = new List<Vector3>();
@@ -30,11 +32,26 @@ public class CubeConfigs : MonoBehaviour
             temp.transform.localPosition = Tables.CornerTable[i];
             spheres[i] = temp.AddComponent<ClickableSphere>();
         }
+
+        lineRenderer = GetComponent<LineRenderer>();
+        lineRenderer.positionCount = cubeEdges.Length;
+        lineRenderer.loop = false;
+
+        DrawCubeLines();
+
+        isStarted = true;
     }
 
     private void Update()
     {
         UpdateConfig();
+    }
+
+    private void OnValidate()
+    {
+        if(!isStarted) return;
+        sphereSize = Mathf.Clamp(sphereSize, 0.1f, 1f);
+        UpdateSphereSizes(sphereSize);
     }
 
     public void UpdateConfig()
@@ -64,8 +81,6 @@ public class CubeConfigs : MonoBehaviour
 
             Vector3 vertPos = (vert1 + vert2) / 2f;
 
-            Debug.Log(vertPos);
-
             vertices.Add(vertPos);
             triangles.Add(vertices.Count - 1);
         }
@@ -85,5 +100,41 @@ public class CubeConfigs : MonoBehaviour
         meshFilter.mesh = mesh;
     }
 
+    void DrawCubeLines()
+    {
+        Vector3[] positions = new Vector3[cubeEdges.Length];
+        for (int i = 0; i < cubeEdges.Length; i++)
+        {
+            positions[i] = cubeVertices[cubeEdges[i]];
+        }
 
+        lineRenderer.SetPositions(positions);
+    }
+
+    // Cube vertices
+    private readonly Vector3[] cubeVertices = new Vector3[]
+    {
+        new (0f, 0f, 0f),
+        new (1f, 0f, 0f),
+        new (1f, 1f, 0f),
+        new (0f, 1f, 0f),
+        new (0f, 0f, 1f),
+        new (1f, 0f, 1f),
+        new (1f, 1f, 1f),
+        new (0f, 1f, 1f)
+    };
+
+    // Line order to form the cube edges
+    private readonly int[] cubeEdges = new int[]
+    {
+        0, 4, 5, 6, 7, 4, 0, 1, 5, 1, 2, 6, 2, 3, 7, 3, 0
+    };
+    
+    private void UpdateSphereSizes(float size)
+    {
+        foreach (var sphere in spheres)
+        { 
+            sphere.SetSphereSize(size);
+        }
+    }
 }
