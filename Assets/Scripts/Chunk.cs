@@ -90,9 +90,9 @@ public class Chunk
 
                     if (configIndex == 0 || configIndex == 255) continue;
 
-                    for (int TriangleVertexCounter = 0; TriangleVertexCounter < 15/*16*/; TriangleVertexCounter++)
+                    for (int vertexCounter = 0; vertexCounter < 15/*16*/; vertexCounter++)
                     {
-                        int edgeIndex = Tables.TriangleTable[configIndex, TriangleVertexCounter];
+                        int edgeIndex = Tables.TriangleTable[configIndex, vertexCounter];
 
                         if (edgeIndex == -1) break;
 
