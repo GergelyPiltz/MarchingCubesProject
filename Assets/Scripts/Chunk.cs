@@ -1,16 +1,14 @@
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 public class Chunk
 {
-    GameObject chunkObject;
-    Vector3Int chunkPosition;
+    readonly GameObject chunkObject;
+    readonly Vector3Int chunkPosition;
 
-    MeshFilter meshFilter;
-    MeshCollider meshCollider;
-    MeshRenderer meshRenderer;
+    readonly MeshFilter meshFilter;
+    readonly MeshCollider meshCollider;
+    readonly MeshRenderer meshRenderer;
 
     List<Vector3> vertices;
     List<int> triangles;
@@ -18,10 +16,11 @@ public class Chunk
     readonly int xLength = 10;
     readonly int yLength = 100;
     readonly int zLength = 10;
-    float terrainHeight = 0f;
+    readonly float terrainHeight = 0f;
 
-    bool smoothTerrain = true;
+    readonly bool smoothTerrain = true;
 
+    float[,] noiseMap;
     float[,,] terrainData;
     int[,,,] vertexIndexArray;
 
@@ -42,6 +41,7 @@ public class Chunk
         meshRenderer = chunkObject.AddComponent<MeshRenderer>();
         meshRenderer.material = Resources.Load<Material>("Materials/Terrain");
 
+        noiseMap = new float[xLength + 1, zLength + 1];
         terrainData = new float[xLength + 1, yLength + 1, zLength + 1];
         vertexIndexArray = new int[xLength, yLength, zLength, 12];
 
@@ -50,17 +50,29 @@ public class Chunk
 
     }
 
-    public void GenerateTerrain(int seed, float startFrequency, float frequencyModifier, float startAmplitude, float amplitudeModifier, int octaves)
+    public void GenerateTerrain(GenerationParams generationParams)
     {
-        CreateTerrainData(seed, startFrequency, frequencyModifier, startAmplitude, amplitudeModifier, octaves);
+
+        noiseMap = Noise.GenerateNoiseMap(
+            xLength + 1,
+            zLength + 1,
+            chunkPosition.x,
+            chunkPosition.z,
+            generationParams.seed,
+            generationParams.startFrequency,
+            generationParams.frequencyModifier,
+            generationParams.startAmplitude,
+            generationParams.amplitudeModifier,
+            generationParams.octaves
+            );
+
+        CreateTerrainData(noiseMap);
         CreateMeshData();
         BuildMesh();
     }
-
     
-    void CreateTerrainData(int seed, float startFrequency, float frequencyModifier, float startAmplitude, float amplitudeModifier, int octaves)
+    void CreateTerrainData(float[,] noiseMap)
     {
-        float[,] noiseMap = Noise.GenerateNoiseMap(xLength + 1, zLength + 1, chunkPosition.x, chunkPosition.z, seed, startFrequency, frequencyModifier, startAmplitude, amplitudeModifier, octaves);
 
         for (int x = 0; x < xLength + 1; x++)
             for (int z = 0; z < zLength + 1; z++)
@@ -266,4 +278,5 @@ public class Chunk
         triangles.Clear();
     }
 
+    
 }

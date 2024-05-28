@@ -1,4 +1,5 @@
 
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -10,29 +11,89 @@ public class ChunkGenerator : MonoBehaviour
     [SerializeField] int chunkSizeX;
     [SerializeField] int chunkSizeY;
     [SerializeField] int chunkSizeZ;
+
+    [SerializeField] Transform player;
+    [SerializeField, Range(2, 16)] int renderDistance; // not really, cause out of range chunks dont disappear (yet)
     
-    Chunk[] chunks;
+    List<Chunk> chunks;
+    List<Vector2> chunkList;
+
+    int chunkIndex;
+
+    MapGenerator mapGenerator;
+
     void Start()
     {
-        chunks = new Chunk[chunksX * chunksZ];
-        for (int x = 0; x < chunksX; x++)
-            for (int z = 0; z < chunksZ; z++)
-                chunks[x * chunksX + z] = new Chunk(
-                    new Vector3Int(x * chunkSizeX, 0, z * chunkSizeZ), 
-                    new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ), 
-                    transform, 
-                    x * chunksX + z
-                );
+        if(!TryGetComponent(out mapGenerator)) enabled = false; // disable the script
+
+        chunks = new List<Chunk> ();
+        chunkList = new List<Vector2> ();
+
+        chunkIndex = 0;
+
+        //for (int x = 0; x < chunksX; x++)
+        //    for (int z = 0; z < chunksZ; z++)
+        //        chunks[x * chunksX + z] = new Chunk(
+        //            new Vector3Int(x * chunkSizeX, 0, z * chunkSizeZ), 
+        //            new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ), 
+        //            transform, 
+        //            x * chunksX + z
+        //        );
             
 
     }
 
-    public void UpdateChunks(int seed, float startFrequency, float frequencyModifier, float startAmplitude, float amplitudeModifier, int octaves)
+    private void Update()
     {
-        for (int x = 0; x < chunksX; x++)
-            for (int z = 0; z < chunksZ; z++)
-                chunks[x * chunksX + z].GenerateTerrain(seed, startFrequency, frequencyModifier, startAmplitude, amplitudeModifier, octaves);
+        int playerInWhickChunkX = Mathf.FloorToInt(player.position.x / chunkSizeX);
+        int playerInWhickChunkZ = Mathf.FloorToInt(player.position.z / chunkSizeZ);
+
+        Vector2Int playerIsInWhichChunk = new(playerInWhickChunkX, playerInWhickChunkZ);
+
+        if (renderDistance % 2 != 0)
+        {
+            renderDistance--;
+        }
+
+        for (int i = 0; i <= renderDistance; i++)
+        {
+            for (int j = 0; j <= renderDistance; j++)
+            {
+                Vector2Int positionRelativeToPlayer = new(i - renderDistance / 2, j - renderDistance / 2);
+                Vector2Int positionInWorld = playerIsInWhichChunk - positionRelativeToPlayer;
+                if (!chunkList.Contains(positionInWorld))
+                {
+                    chunkList.Add(positionInWorld); // for the love of god dont forget this
+
+                    Chunk temp = new (
+                        new Vector3Int(positionInWorld.x * chunksX, 0, positionInWorld.y * chunksZ /*its technically .z*/ ),
+                        new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ),
+                        transform,
+                        chunkIndex
+                        );
+
+                    chunks.Add(temp);
+                    temp.GenerateTerrain(mapGenerator.GetGenerationParameters());
+                        
+                    chunkIndex++;
+                }
+            }
+        }
     }
+
+    private void OnValidate()
+    {
+        renderDistance = Mathf.Clamp(renderDistance, 2, 16);
+    }
+
+    public void UpdateChunks()
+    {
+        foreach (var chunk in chunks)
+        {
+            chunk.GenerateTerrain(mapGenerator.GetGenerationParameters());
+        }
+    }
+
 
     void OnDrawGizmosSelected()
     {

@@ -16,8 +16,10 @@ public class MapGenerator : MonoBehaviour
     [SerializeField, Range(0.001f, 1)] float amplitudeModifier;
     [SerializeField, Range(0, 10)] int octaves;
 
+    GenerationParams generationParams;
+
     [SerializeField] DrawMode drawMode;
-    [SerializeField] TerrainType[] terrainTypes;
+    public TerrainType[] terrainTypes;
 
     public enum DrawMode {NoiseMap, ColorMap}
     MapDisplay mapDisplay;
@@ -36,6 +38,16 @@ public class MapGenerator : MonoBehaviour
         startAmplitude = Mathf.Clamp01(startAmplitude);
         amplitudeModifier = Mathf.Clamp01(amplitudeModifier);
         octaves = Mathf.Clamp(octaves, 1, 10);
+
+        generationParams = new GenerationParams
+        {
+            seed = seed,
+            startFrequency = startFrequency,
+            frequencyModifier = frequencyModifier,
+            startAmplitude = startAmplitude,
+            amplitudeModifier = amplitudeModifier,
+            octaves = octaves
+        };
     }
 
     private void Start()
@@ -82,8 +94,24 @@ public class MapGenerator : MonoBehaviour
 
     public void GenerateMap()
     {
-        chunkGenerator.UpdateChunks(seed, startFrequency, frequencyModifier, startAmplitude, amplitudeModifier, octaves);
+        chunkGenerator.UpdateChunks();
     }
+
+    public GenerationParams GetGenerationParameters()
+    {
+        return generationParams;
+    }
+
+}
+
+public struct GenerationParams
+{
+    public int seed;
+    public float startFrequency;
+    public float frequencyModifier;
+    public float startAmplitude;
+    public float amplitudeModifier;
+    public int octaves;
 }
 
 [System.Serializable]
@@ -92,4 +120,5 @@ public struct TerrainType
     public string name;
     public float height;
     public Color color;
+    
 }

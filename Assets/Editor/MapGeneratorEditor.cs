@@ -23,5 +23,6 @@ public class MapGeneratorEditor : Editor
         {
             mapGenerator.GenerateMap();
         }
+
     }
 }

@@ -6,7 +6,7 @@ using static UnityEditor.FilePathAttribute;
 public class FlightControl : MonoBehaviour
 {
     float velocity = 0f;
-    readonly float speedSensitivity = 10f;
+    readonly float speedSensitivity = 1f;
 
     Vector3 rotation = Vector3.zero;
     readonly Vector3 rotationSensitivity = new(10, 10, 10); // (roll, yaw, pitch)
