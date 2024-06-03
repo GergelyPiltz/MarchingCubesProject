@@ -1,24 +1,65 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Tables : MonoBehaviour
+public static class Tables
 {
 
-    public static readonly Vector3Int[] CornerTable = new Vector3Int[8] {
+    public static readonly Vector3Int[] redirect = new Vector3Int[]
+    { 
+        //    X   Y   Z          
+        new (-1,  2,  4),  // 0  
+        new (-1, -1,  5),  // 1  
+        new (-1, -1,  6),  // 2  
+        new ( 1, -1,  7),  // 3  
+        new (-1,  6, -1),  // 4  
+        new (-1, -1, -1),  // 5  
+        new (-1, -1, -1),  // 6  
+        new ( 5, -1, -1),  // 7  
+        new ( 9, 11, -1),  // 8  
+        new (-1, 10, -1),  // 9  
+        new (-1, -1, -1),  // 10 
+        new (10, -1, -1)   // 11
+           
+        /*
+        Redirect from edges (rows)  0|1|2|3|4|_|_|7|8|9|__|11
+        Redirect to edges (columns) _|1|2|_|4|5|6|7|_|9|10|11
+        -1 is invalid. No redirection possible on given axis. Calculations must be done.
+        No redirections possible on edges 5, 6, 10. Edges are facing "forwards". New values necessary.
+        No redirections to 0, 3, 8. Edges are facing "backwards" and the values are left behind.
 
-        new Vector3Int(0, 0, 0),
-        new Vector3Int(1, 0, 0),
-        new Vector3Int(1, 1, 0),
-        new Vector3Int(0, 1, 0),
-        new Vector3Int(0, 0, 1),
-        new Vector3Int(1, 0, 1),
-        new Vector3Int(1, 1, 1),
-        new Vector3Int(0, 1, 1)
+
+             +------6-------+
+            /|             /|
+           / |            / |
+         11  7           10 |
+         /   |          /   |
+        +--------2-----+    5
+        |    |         |    |
+        |    |         |    |
+        |    +----4----|----+
+        3   /          |   /
+        |  8           1  9
+        | /            | /
+        |/             |/
+        +------0-------+
+            
+        */
+    };
+
+    public static readonly Vector3Int[] CornerTable = new Vector3Int[] {
+
+        new (0, 0, 0),
+        new (1, 0, 0),
+        new (1, 1, 0),
+        new (0, 1, 0),
+        new (0, 0, 1),
+        new (1, 0, 1),
+        new (1, 1, 1),
+        new (0, 1, 1)
 
     };
 
-    public static readonly int[,] EdgeTable = new int[12, 2] {
+    public static readonly int[,] EdgeTable = new int[,] {
 
         {0, 1},
         {1, 2},

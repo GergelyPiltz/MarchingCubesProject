@@ -6,10 +6,10 @@ using UnityEngine;
 
 public class MapDisplay : MonoBehaviour
 {
-    Renderer renderer;
+    Renderer _renderer;
     void Start()
     {
-        renderer = GetComponent<Renderer>();
+        _renderer = GetComponent<Renderer>();
     }
 
     public void DrawNoiseMap(float[,] noiseMap)
@@ -31,7 +31,7 @@ public class MapDisplay : MonoBehaviour
         texture.SetPixels32(colorMap);
         texture.Apply();
 
-        renderer.material.mainTexture = texture;
+        _renderer.material.mainTexture = texture;
     }
 
     public void DrawColorMap(Color32[] colorMap, int width, int height)
@@ -46,7 +46,7 @@ public class MapDisplay : MonoBehaviour
         texture.SetPixels32(colorMap);
         texture.Apply();
 
-        renderer.material.mainTexture = texture;
+        _renderer.material.mainTexture = texture;
     }
 
 }

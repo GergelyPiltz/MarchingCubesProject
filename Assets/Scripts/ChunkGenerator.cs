@@ -6,11 +6,12 @@ using UnityEngine.UIElements;
 public class ChunkGenerator : MonoBehaviour
 {
     [Header("Chunk Parameters")]
-    [SerializeField] int chunksX;
-    [SerializeField] int chunksZ;
+    //[SerializeField] int chunksX;
+    //[SerializeField] int chunksZ;
     [SerializeField] int chunkSizeX;
     [SerializeField] int chunkSizeY;
     [SerializeField] int chunkSizeZ;
+    [SerializeField] bool generateOnlyOneChunk = false;
 
     [SerializeField] Transform player;
     [SerializeField, Range(2, 16)] int renderDistance; // not really, cause out of range chunks dont disappear (yet)
@@ -31,20 +32,24 @@ public class ChunkGenerator : MonoBehaviour
 
         chunkIndex = 0;
 
-        //for (int x = 0; x < chunksX; x++)
-        //    for (int z = 0; z < chunksZ; z++)
-        //        chunks[x * chunksX + z] = new Chunk(
-        //            new Vector3Int(x * chunkSizeX, 0, z * chunkSizeZ), 
-        //            new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ), 
-        //            transform, 
-        //            x * chunksX + z
-        //        );
-            
+        if (generateOnlyOneChunk)
+        {
+            Chunk temp = new(
+                    new Vector3Int(0, 0, 0),
+                    new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ),
+                    transform,
+                    0
+                );
+            temp.GenerateTerrain(mapGenerator.GetGenerationParameters());
+            chunks.Add(temp);
+        }
 
     }
 
     private void Update()
     {
+        if (generateOnlyOneChunk) return;
+
         int playerInWhickChunkX = Mathf.FloorToInt(player.position.x / chunkSizeX);
         int playerInWhickChunkZ = Mathf.FloorToInt(player.position.z / chunkSizeZ);
 
@@ -66,7 +71,7 @@ public class ChunkGenerator : MonoBehaviour
                     chunkList.Add(positionInWorld); // for the love of god dont forget this
 
                     Chunk temp = new (
-                        new Vector3Int(positionInWorld.x * chunksX, 0, positionInWorld.y * chunksZ /*its technically .z*/ ),
+                        new Vector3Int(positionInWorld.x * chunkSizeX, 0, positionInWorld.y * chunkSizeZ /*its practically .z*/ ),
                         new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ),
                         transform,
                         chunkIndex

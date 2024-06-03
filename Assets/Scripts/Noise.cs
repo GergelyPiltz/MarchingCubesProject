@@ -18,7 +18,6 @@ public static class Noise
                 float total = 0f;
                 float frequency = startFrequency;
                 float amplitude = startAmplitude;
-                float totalAmplitudes = 0;
                 for (int i = 0; i < octaves; i++)
                 {
 
