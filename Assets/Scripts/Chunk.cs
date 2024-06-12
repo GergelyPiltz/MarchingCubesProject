@@ -1,7 +1,23 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.Profiling;
+
+
+// Leave integral type on default int. causes less confusion.
+// Mathf.Pow(2, (int)chunkSize);
+// Always specify all Enum integers explicitly !!!
+public enum ChunkSize
+{
+    _8x8 = 3,
+    _16x16 = 4,
+    _32x32 = 5,
+    _64x64 = 6,
+    _128x128 = 7,
+    _256x256 = 8,
+}
+// It is both possible to have 2^x cubes or values. If needed refactor to whatever fits better. 
+// If 2^x values then  + 1 + (LOD * 2)
 
 public class Chunk
 {
@@ -15,64 +31,142 @@ public class Chunk
     List<Vector3> vertices;
     List<int> triangles;
 
-    readonly int xLength = 10;
-    readonly int yLength = 100;
-    readonly int zLength = 10;
+    readonly ChunkSize chunkSize;
+
+    readonly int cubesX = 16;
+    readonly int cubesY = 256;
+    readonly int cubesZ = 16;
+
+    readonly int valuesX = 17;
+    readonly int valuesY = 257;
+    readonly int valuesZ = 17;
+
     readonly float terrainHeight = 0f;
 
-    readonly bool smoothTerrain = true;
-    readonly bool meshSharedVertices = true;
-    readonly bool cubeSharedVertices = true;
+    bool smoothTerrain = true;
+    bool meshSharedVertices = true;
+    bool cubeSharedVertices = true;
+    int LOD = 1;
+    readonly bool enableLOD = true;
+
+    bool dataAvailable = false;
 
     float[,] noiseMap;
     float[,,] terrainData;
     int[,,,] vertexIndexArray;
 
-    public Chunk(Vector3Int _position, Vector3Int _dimensions, Transform parent, int index)
+    double time = 0f;
+    int totalVertexCount = 0;
+    int uniqueVertexCount = 0;
+    long meshMemoryUsage = 0;
+
+    readonly int chunkIndex = 0;
+
+    public Chunk(Vector3Int _position, ChunkSize _chunkSize, Transform _parent, int _index)
     {
         chunkObject = new GameObject();
-        chunkObject.transform.parent = parent;
-        chunkObject.name = "Chunk(" + index + ")";
+        chunkObject.transform.parent = _parent;
+        chunkIndex = _index;
+        chunkObject.name = "Chunk(" + chunkIndex + ")";
         chunkPosition = _position;
         chunkObject.transform.position = chunkPosition;
 
-        xLength = _dimensions.x;
-        yLength = _dimensions.y;
-        zLength = _dimensions.z;
+        chunkSize = _chunkSize;
+        if (chunkSize == 0) chunkSize = ChunkSize._16x16;
+        Vector3Int dimensions = new(
+            (int)Mathf.Pow(2, (int)chunkSize),
+            256,
+            (int)Mathf.Pow(2, (int)chunkSize)
+            );
+
+        //Vector3Int dimensions = chunkSize switch
+        //{
+        //    ChunkSize._7x7     => new(7, chunkHeight, 7),
+        //    ChunkSize._15x15   => new(15, chunkHeight, 15),
+        //    ChunkSize._31x31   => new(31, chunkHeight, 31),
+        //    ChunkSize._63x63   => new(63, chunkHeight, 63),
+        //    ChunkSize._127x127 => new(127, chunkHeight, 127),
+        //    ChunkSize._255x255 => new(255, chunkHeight, 255),
+        //    _                  => new(15, chunkHeight, 15),
+        //};
+
+        cubesX = dimensions.x;
+        cubesY = dimensions.y;
+        cubesZ = dimensions.z;
+
+        valuesX = cubesX + 1;
+        valuesY = cubesY + 1;
+        valuesZ = cubesZ + 1;
 
         meshFilter = chunkObject.AddComponent<MeshFilter>();
         meshCollider = chunkObject.AddComponent<MeshCollider>();
         meshRenderer = chunkObject.AddComponent<MeshRenderer>();
         meshRenderer.material = Resources.Load<Material>("Materials/Terrain");
 
-        noiseMap = new float[xLength + 1, zLength + 1];
-        terrainData = new float[xLength + 1, yLength + 1, zLength + 1];
-        vertexIndexArray = new int[xLength, yLength, zLength, 12];
-        for (int i = 0; i < xLength; i++)
-            for (int j = 0; j < yLength; j++)
-                for (int k = 0; k < zLength; k++)
-                    for (int i1 = 0; i1 < 12; i1++)
-                        vertexIndexArray[i, j, k, i1] = -1;
+        noiseMap = new float[valuesX, valuesZ];
+        terrainData = new float[valuesX, valuesY, valuesZ];
+        vertexIndexArray = new int[cubesX, cubesY, cubesZ, 12];
+        ResetVertexIndexArray();
 
         vertices = new();
         triangles = new();
 
     }
 
-    public void GenerateTerrain(GenerationParams generationParams)
+    // This constructor is for debugging and benchmarking only
+    public Chunk(Vector3Int _position, Vector3Int _dimensions, Transform _parent, int _index)
     {
+        chunkObject = new GameObject();
+        chunkObject.transform.parent = _parent;
+        chunkObject.name = "Chunk(" + _index + ")";
+        chunkPosition = _position;
+        chunkObject.transform.position = chunkPosition;
+
+
+        cubesX = _dimensions.x;
+        cubesY = _dimensions.y;
+        cubesZ = _dimensions.z;
+
+        valuesX = cubesX + 1;
+        valuesY = cubesY + 1;
+        valuesZ = cubesZ + 1;
+
+        enableLOD = false;
+
+        meshFilter = chunkObject.AddComponent<MeshFilter>();
+        meshCollider = chunkObject.AddComponent<MeshCollider>();
+        meshRenderer = chunkObject.AddComponent<MeshRenderer>();
+        meshRenderer.material = Resources.Load<Material>("Materials/Terrain");
+
+        noiseMap = new float[valuesX, valuesZ];
+        terrainData = new float[valuesX, valuesY, valuesZ];
+        vertexIndexArray = new int[cubesX, cubesY, cubesZ, 12];
+        ResetVertexIndexArray();
+
+        vertices = new();
+        triangles = new();
+
+    }
+
+    ~Chunk()
+    {
+        Debug.Log("chunk destructor called");
+        GameObject.Destroy(chunkObject);
+    }
+
+    public void GenerateTerrain(GenerationParams generationParams, MeshConstructParams meshConstructParams)
+    {
+        smoothTerrain = meshConstructParams.smoothTerrain;
+        meshSharedVertices = meshConstructParams.meshSharedVertices;
+        cubeSharedVertices = meshConstructParams.cubeSharedVertices;
+        LOD = meshConstructParams.LOD;
 
         noiseMap = Noise.GenerateNoiseMap(
-            xLength + 1,
-            zLength + 1,
+            valuesX,
+            valuesZ,
             chunkPosition.x,
             chunkPosition.z,
-            generationParams.seed,
-            generationParams.startFrequency,
-            generationParams.frequencyModifier,
-            generationParams.startAmplitude,
-            generationParams.amplitudeModifier,
-            generationParams.octaves
+            generationParams
             );
 
         CreateTerrainData(noiseMap);
@@ -84,32 +178,41 @@ public class Chunk
     void CreateTerrainData(float[,] noiseMap)
     {
 
-        for (int x = 0; x < xLength + 1; x++)
-            for (int z = 0; z < zLength + 1; z++)
+        for (int x = 0; x < valuesX; x++)
+            for (int z = 0; z < valuesZ; z++)
             {
-                float currentHeight = yLength * noiseMap[x, z];
+                float currentHeight = cubesY * noiseMap[x, z];
 
-                for (int y = 0; y < yLength + 1; y++)
+                for (int y = 0; y < valuesY; y++)
                     terrainData[x, y, z] = (float)y - currentHeight;
             }
     }
 
     void CreateMeshData()
     {
+        dataAvailable = false;
+
         vertices.Clear();
         triangles.Clear();
+        ResetVertexIndexArray();
+
+        if (!enableLOD || LOD <= 0 || LOD >= (int)chunkSize)
+            LOD = 1;
+        else
+            LOD = (int)Mathf.Pow(2, LOD);
+
 
         float startTime = Time.realtimeSinceStartup;
 
-        for (int x = 0; x < xLength; x++)
-            for (int y = 0; y < yLength; y++)
-                for (int z = 0; z < zLength; z++)
+        for (int x = 0; x < cubesX; x += LOD)
+            for (int y = 0; y < cubesY; y += LOD)
+                for (int z = 0; z < cubesZ; z += LOD)
                 {
                     Vector3Int position = new(x, y, z);
 
                     float[] cube = new float[8];
                     for (int i = 0; i < 8; i++)
-                        cube[i] = SampleTerrain(position + Tables.CornerTable[i]);
+                        cube[i] = SampleTerrain(position + Tables.CornerTable[i] * LOD);
 
                     int configIndex = GetCubeCongif(cube);
 
@@ -121,31 +224,38 @@ public class Chunk
 
                         if (edgeIndex == -1) break;
 
-                        if (meshSharedVertices)
+                        // On a given edge, a value must exist on the correlating edge on the previous cube, 
+                        // because the mesh doesnt have holes in it. No need to check for an actual value on that edge,
+                        // just copy it as there is a value in all cases. 
+                        // No unnecessary copy operations are done as if the previous value is -1 its correlating edge is not even being computed.
+                        // Only check for a value at the same position as the given edge to share vertices inside the cube.
+
+                        if (meshSharedVertices) // sharing vertices in mesh and maybe in cubes
                         {
-                            if (cubeSharedVertices && vertexIndexArray[x, y, z, edgeIndex] != -1) // if a value already exists no need to copy
+                            int redirect, index;
+                            if (cubeSharedVertices && (index = vertexIndexArray[x, y, z, edgeIndex]) != -1) // if a value already exists no need to copy
                             {
-                                triangles.Add(vertexIndexArray[x, y, z, edgeIndex]);
+                                triangles.Add(index);
                             }
-                            else if (x > 0 && Tables.redirect[edgeIndex].x != -1) // try to copy a value from the given axis, if cant, try an other axis
+                            else if (x > 0 && (redirect = Tables.redirect[edgeIndex].x) != -1) // try to copy a value from the given axis, if cant, try an other axis
                             {
-                                int index = vertexIndexArray[x - 1, y, z, Tables.redirect[edgeIndex].x];
+                                index = vertexIndexArray[x - 1 * LOD, y, z, redirect];
                                 vertexIndexArray[x, y, z, edgeIndex] = index;
                                 triangles.Add(index);
                             } 
-                            else if (y > 0 && Tables.redirect[edgeIndex].y != -1) // try to copy a value from the given axis, if cant, try an other axis
+                            else if (y > 0 && (redirect = Tables.redirect[edgeIndex].y) != -1) // try to copy a value from the given axis, if cant, try an other axis
                             {
-                                int index = vertexIndexArray[x, y - 1, z, Tables.redirect[edgeIndex].y];
+                                index = vertexIndexArray[x, y - 1 * LOD, z, redirect];
                                 vertexIndexArray[x, y, z, edgeIndex] = index;
                                 triangles.Add(index);
                             }
-                            else if (z > 0 && Tables.redirect[edgeIndex].z != -1) // try to copy a value from the given axis, if cant, try an other axis
+                            else if (z > 0 && (redirect = Tables.redirect[edgeIndex].z) != -1) // try to copy a value from the given axis, if cant, try an other axis
                             {
-                                int index = vertexIndexArray[x, y, z - 1, Tables.redirect[edgeIndex].z];
+                                index = vertexIndexArray[x, y, z - 1 * LOD, redirect];
                                 vertexIndexArray[x, y, z, edgeIndex] = index;
                                 triangles.Add(index);
                             }
-                            else // if no preexisting values could be used calculate the vertex and retrieve its index
+                            else // if no preexisting values could be used, calculate the vertex and retrieve its index
                             {
                                 vertexIndexArray[x, y, z, edgeIndex] = CalculateVertex(position, edgeIndex, cube);
                             }
@@ -255,7 +365,14 @@ public class Chunk
                             }
                             */
                         }
-                        else
+                        else if (cubeSharedVertices) // sharing vertices in cubes only
+                        {
+                            if (vertexIndexArray[x, y, z, edgeIndex] != -1)
+                                triangles.Add(vertexIndexArray[x, y, z, edgeIndex]);
+                            else
+                                vertexIndexArray[x, y, z, edgeIndex] = CalculateVertex(position, edgeIndex, cube);
+                        }
+                        else // not sharing vertices
                         {
                             CalculateVertex(position, edgeIndex, cube);
                         }
@@ -263,39 +380,44 @@ public class Chunk
                 }
 
         float endTime = Time.realtimeSinceStartup;
-        float time = endTime - startTime;
+
+        time = endTime - startTime;
+
+        totalVertexCount = vertices.Count();
+
+        uniqueVertexCount = vertices.Distinct().Count();
+
+#if _DEBUG
         Debug.Log("Time to calculate mesh: " + time);
 
-        int vertexCount = vertices.Count();
-        int uniqueVertices = vertices.Distinct().Count();
-
-        if (vertexCount != uniqueVertices)
+        if (vertexCount != uniqueVertexCount)
             Debug.Log("Duplicate vertices exist");
         else
             Debug.Log("No duplicate vertices exist");
 
         Debug.Log("Vertex count with dupes:    " + vertexCount);
-        Debug.Log("Vertex count without dupes: " + uniqueVertices);
+        Debug.Log("Vertex count without dupes: " + uniqueVertexCount);  
+#endif
 
-        
+        dataAvailable = true;
     }
 
-    int CalculateVertex(Vector3Int position, int index, float[] cube)
+    int CalculateVertex(Vector3Int position, int edgeIndex, float[] cube)
     {
-
-        Vector3 vert1 = position + Tables.CornerTable[Tables.EdgeTable[index, 0]];
-        Vector3 vert2 = position + Tables.CornerTable[Tables.EdgeTable[index, 1]];
+        Vector3 vert1 = Tables.CornerTable[Tables.EdgeTable[edgeIndex, 0]];
+        Vector3 vert2 = Tables.CornerTable[Tables.EdgeTable[edgeIndex, 1]];
 
         Vector3 vertPos;
         if (smoothTerrain)
         {
-            float vert1Sample = cube[Tables.EdgeTable[index, 0]];
-            float vert2Sample = cube[Tables.EdgeTable[index, 1]];
+            float vert1Sample = cube[Tables.EdgeTable[edgeIndex, 0]];
+            float vert2Sample = cube[Tables.EdgeTable[edgeIndex, 1]];
 
             float difference = vert2Sample - vert1Sample;
-
+#if _DEBUG
             if (difference == 0)
                 Debug.Log("DIFFERENCE IS 0");
+#endif
 
             difference = (terrainHeight - vert1Sample) / difference;
 
@@ -303,6 +425,9 @@ public class Chunk
         }
         else
             vertPos = (vert1 + vert2) / 2f;
+
+        vertPos *= LOD;
+        vertPos += position;
 
         vertices.Add(vertPos);
         int vertexCount = vertices.Count;
@@ -334,15 +459,58 @@ public class Chunk
         };
         mesh.RecalculateNormals();
 
+        meshMemoryUsage = Profiler.GetRuntimeMemorySizeLong(mesh);
+
         meshFilter.mesh = mesh;
         meshCollider.sharedMesh = mesh;
     }
 
-    void ClearMeshData()
+    void ResetVertexIndexArray()
     {
-        vertices.Clear();
-        triangles.Clear();
+        for (int i = 0; i < cubesX; i++)
+            for (int j = 0; j < cubesY; j++)
+                for (int k = 0; k < cubesZ; k++)
+                    for (int i1 = 0; i1 < 12; i1++)
+                        vertexIndexArray[i, j, k, i1] = -1;
+    }
+    
+    public bool IsDataAvailable()
+    {
+        return dataAvailable;
     }
 
-    
+    public string[] GetData()
+    {
+        string chunkIndexStr = chunkIndex.ToString();
+        string dimensionsStr = cubesX.ToString() + "," + cubesY.ToString() + "," + cubesZ.ToString();
+        string timeStr = time.ToString();
+        string vertexCountStr = totalVertexCount.ToString();
+        string uniqueVertexCountStr = uniqueVertexCount.ToString();
+        string smoothTerrainStr = smoothTerrain.ToString();
+        string meshSharedVerticesStr = meshSharedVertices.ToString();
+        string cubeSharedVerticesStr = cubeSharedVertices.ToString();
+        return new string[8] { chunkIndexStr, dimensionsStr, timeStr, vertexCountStr, uniqueVertexCountStr, smoothTerrainStr, meshSharedVerticesStr, cubeSharedVerticesStr };
+        // chunkIndexStr, dimensionsStr, timeStr, vertexCountStr, uniqueVertexCountStr, smoothTerrainStr, meshSharedVerticesStr, cubeSharedVerticesStr
+    }
+
+    public List<int> GetTriangles() { return triangles; }
+
+    public int[,,,] GetVertexIndexArray() { return vertexIndexArray; }
+
+    public double GetTimeToGenerate() { return time; }
+
+    public int GetTotalVertexCount() { return totalVertexCount; }
+
+    public int GetUniqueVertexCount() { return uniqueVertexCount; }
+
+    public long GetMeshMemoryUsage() { return meshMemoryUsage; }
+
+    public struct MeshConstructParams
+    {
+        public bool smoothTerrain;
+        public bool meshSharedVertices;
+        public bool cubeSharedVertices;
+        public int LOD;
+    }
+
 }

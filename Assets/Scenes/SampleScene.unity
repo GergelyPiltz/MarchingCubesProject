@@ -153,12 +153,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a1be9049c8bf4542acaaf6ad44b1eb1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  chunkSizeX: 16
-  chunkSizeY: 100
-  chunkSizeZ: 16
+  chunkSize: 4
+  LOD: 0
   generateOnlyOneChunk: 1
+  smoothTerrain: 1
+  meshSharedVertices: 1
+  cubeSharedVertices: 1
   player: {fileID: 1730157063}
   renderDistance: 16
+  enableBenchmark: 0
 --- !u!4 &557942974
 Transform:
   m_ObjectHideFlags: 0

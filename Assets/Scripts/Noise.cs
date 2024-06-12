@@ -2,11 +2,11 @@ using UnityEngine;
 
 public static class Noise
 {
-    public static float[,] GenerateNoiseMap(int width, int height, int offsetX, int offsetY, int seed, float startFrequency, float frequencyModifier, float startAmplitude, float amplitudeModifier, int octaves)
+    public static float[,] GenerateNoiseMap(int width, int height, int offsetX, int offsetY, GenerationParams generationParams)
     {
-        Random.InitState(seed);
-        Vector2[] octaveOffsets = new Vector2[octaves];
-        for (int i = 0; i < octaves; i++)
+        Random.InitState(generationParams.seed);
+        Vector2[] octaveOffsets = new Vector2[generationParams.octaves];
+        for (int i = 0; i < generationParams.octaves; i++)
         {
             octaveOffsets[i].Set(Random.Range(-100_000, 100_000), Random.Range(-100_000, 100_000));    
         }
@@ -16,9 +16,9 @@ public static class Noise
             for (int y = 0; y < height; y++)
             {
                 float total = 0f;
-                float frequency = startFrequency;
-                float amplitude = startAmplitude;
-                for (int i = 0; i < octaves; i++)
+                float frequency = generationParams.startFrequency;
+                float amplitude = generationParams.startAmplitude;
+                for (int i = 0; i < generationParams.octaves; i++)
                 {
 
                     float xCoord = (x + offsetX) / 9999f * frequency + octaveOffsets[i].x;
@@ -53,8 +53,8 @@ public static class Noise
                     //total += amplitude * sample4;
                     //totalAmplitudes += amplitude;
 
-                    frequency *= frequencyModifier;
-                    amplitude *= amplitudeModifier;
+                    frequency *= generationParams.frequencyModifier;
+                    amplitude *= generationParams.amplitudeModifier;
 
                 }
                 //total /= totalAmplitudes;

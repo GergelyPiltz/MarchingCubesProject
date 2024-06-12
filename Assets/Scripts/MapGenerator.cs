@@ -72,7 +72,7 @@ public class MapGenerator : MonoBehaviour
     public void UpdateMapDisplay()
     {
         if (!isMapDisplay) return;
-        float[,] noiseMap = Noise.GenerateNoiseMap(width, height, 0, 0, seed, startFrequency, frequencyModifier, startAmplitude, amplitudeModifier, octaves);
+        float[,] noiseMap = Noise.GenerateNoiseMap(width, height, 0, 0, generationParams);
         if (drawMode == DrawMode.NoiseMap)
             mapDisplay.DrawNoiseMap(noiseMap);
         else

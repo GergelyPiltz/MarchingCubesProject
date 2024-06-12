@@ -1,23 +1,41 @@
 
+using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Data;
+using System.IO;
+using System.Net.NetworkInformation;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static Chunk;
 
 public class ChunkGenerator : MonoBehaviour
 {
     [Header("Chunk Parameters")]
     //[SerializeField] int chunksX;
     //[SerializeField] int chunksZ;
-    [SerializeField] int chunkSizeX;
-    [SerializeField] int chunkSizeY;
-    [SerializeField] int chunkSizeZ;
+    Vector3Int chunkDimensions;
+    [SerializeField] ChunkSize chunkSize = ChunkSize._16x16;
+
+    [SerializeField, Range(0, 8)] int LOD = 0;
     [SerializeField] bool generateOnlyOneChunk = false;
+    [SerializeField] bool smoothTerrain = true;
+    [SerializeField] bool meshSharedVertices = true;
+    [SerializeField] bool cubeSharedVertices = true;
+    MeshConstructParams meshConstructParams;
 
     [SerializeField] Transform player;
     [SerializeField, Range(2, 16)] int renderDistance; // not really, cause out of range chunks dont disappear (yet)
     
+    [SerializeField] bool enableBenchmark = false;
+
     List<Chunk> chunks;
     List<Vector2> chunkList;
+    //List<string> dataList;
+
+    
+
 
     int chunkIndex;
 
@@ -26,21 +44,28 @@ public class ChunkGenerator : MonoBehaviour
     void Start()
     {
         if(!TryGetComponent(out mapGenerator)) enabled = false; // disable the script
-
+        
         chunks = new List<Chunk> ();
         chunkList = new List<Vector2> ();
+        //dataList = new List<string> ();
+
+        arrayLength = chunkSizeToTest_MAX_Excluded - chunkSizeToTest_MIN_Included;
+        smoothedTerrainProcessTime = new string[arrayLength, 4];
+        roughTerrainProcessTime = new string[arrayLength, 4];
+        terrainTotalVertexCount = new string[arrayLength, 4];
+        memoryUsage = new string[arrayLength, 4];
 
         chunkIndex = 0;
 
-        if (generateOnlyOneChunk)
+        if (generateOnlyOneChunk && !enableBenchmark)
         {
             Chunk temp = new(
                     new Vector3Int(0, 0, 0),
-                    new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ),
+                    chunkSize,
                     transform,
                     0
                 );
-            temp.GenerateTerrain(mapGenerator.GetGenerationParameters());
+            temp.GenerateTerrain(mapGenerator.GetGenerationParameters(), meshConstructParams);
             chunks.Add(temp);
         }
 
@@ -48,17 +73,14 @@ public class ChunkGenerator : MonoBehaviour
 
     private void Update()
     {
-        if (generateOnlyOneChunk) return;
+        if (generateOnlyOneChunk || enableBenchmark) return;
 
-        int playerInWhickChunkX = Mathf.FloorToInt(player.position.x / chunkSizeX);
-        int playerInWhickChunkZ = Mathf.FloorToInt(player.position.z / chunkSizeZ);
+        int playerInWhichChunkX = Mathf.FloorToInt(player.position.x / chunkDimensions.x);
+        int playerInWhichChunkZ = Mathf.FloorToInt(player.position.z / chunkDimensions.z);
 
-        Vector2Int playerIsInWhichChunk = new(playerInWhickChunkX, playerInWhickChunkZ);
+        Vector2Int playerIsInWhichChunk = new(playerInWhichChunkX, playerInWhichChunkZ);
 
-        if (renderDistance % 2 != 0)
-        {
-            renderDistance--;
-        }
+        if (renderDistance % 2 != 0) renderDistance--;
 
         for (int i = 0; i <= renderDistance; i++)
         {
@@ -71,14 +93,14 @@ public class ChunkGenerator : MonoBehaviour
                     chunkList.Add(positionInWorld); // for the love of god dont forget this
 
                     Chunk temp = new (
-                        new Vector3Int(positionInWorld.x * chunkSizeX, 0, positionInWorld.y * chunkSizeZ /*its practically .z*/ ),
-                        new Vector3Int(chunkSizeX, chunkSizeY, chunkSizeZ),
+                        new Vector3Int(positionInWorld.x * chunkDimensions.x, 0, positionInWorld.y * chunkDimensions.z /*its practically .z*/ ),
+                        chunkSize,
                         transform,
                         chunkIndex
                         );
 
                     chunks.Add(temp);
-                    temp.GenerateTerrain(mapGenerator.GetGenerationParameters());
+                    temp.GenerateTerrain(mapGenerator.GetGenerationParameters(), meshConstructParams);
                         
                     chunkIndex++;
                 }
@@ -86,24 +108,370 @@ public class ChunkGenerator : MonoBehaviour
         }
     }
 
-    private void OnValidate()
+    public void RunBenchmark()
     {
-        renderDistance = Mathf.Clamp(renderDistance, 2, 16);
+        if (enableBenchmark && !generateOnlyOneChunk)
+        {
+            StartCoroutine(Benchmark());
+        }
+    }
+
+    IEnumerator Benchmark()
+    {
+        //List<Task> tasks = new();
+
+        //for (int i = 0; i < arrayLength; i++)
+        //{
+        //    Task t = new Task(GenerateMeshForChunk(i));
+        //    tasks.Add(t);
+        //    //t.Start();
+
+        //    tasks.Add(t);
+
+        //}
+
+        //yield return new WaitForSeconds(10);
+
+        //while (true)
+        //{
+        //    bool tasksFinished = true;
+        //    foreach (var task in tasks)
+        //        if (task.Running)
+        //        {
+        //            tasksFinished = false;
+        //            yield return new WaitForSeconds(0.1f);
+        //        }
+        //    if (tasksFinished)
+        //        break;
+        //}
+
+        for (int i = 0; i < arrayLength; i++)
+        {
+            GenerateMeshForChunk(i + chunkSizeToTest_MIN_Included);
+        }
+
+        //----------------------------------------------------------------------------------
+        string fileName = "SmoothProcessingTimes.txt";
+
+        string docPath =
+          Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        using (StreamWriter outputFile = new(Path.Combine(docPath, fileName))) {
+            outputFile.WriteLine(descSmoothProcessTime);
+            outputFile.WriteLine(HEADER);
+            for (int i = 0; i < arrayLength; i++)
+            {
+                outputFile.Write((i + chunkSizeToTest_MIN_Included).ToString() + DELIMITER);
+                for (int j = 0; j < 4; j++)
+                    outputFile.Write(smoothedTerrainProcessTime[i,j] + DELIMITER);
+                outputFile.WriteLine();
+            }
+        }
+        //----------------------------------------------------------------------------------
+        fileName = "RoughProcessingTimes.txt";
+
+        docPath =
+          Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        using (StreamWriter outputFile = new(Path.Combine(docPath, fileName)))
+        {
+            outputFile.WriteLine(descRoughProcessTime);
+            outputFile.WriteLine(HEADER);
+            for (int i = 0; i < arrayLength; i++)
+            {
+                outputFile.Write((i + chunkSizeToTest_MIN_Included).ToString() + DELIMITER);
+                for (int j = 0; j < 4; j++)
+                    outputFile.Write(roughTerrainProcessTime[i, j] + DELIMITER);
+                outputFile.WriteLine();
+            }
+        }
+        //----------------------------------------------------------------------------------
+        fileName = "TotalVertexCounts.txt";
+
+        docPath =
+          Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        using (StreamWriter outputFile = new(Path.Combine(docPath, fileName)))
+        {
+            outputFile.WriteLine(descTotalVertexCount);
+            outputFile.WriteLine(HEADER);
+            for (int i = 0; i < arrayLength; i++)
+            {
+                outputFile.Write((i + chunkSizeToTest_MIN_Included).ToString() + DELIMITER);
+                for (int j = 0; j < 4; j++)
+                    outputFile.Write(terrainTotalVertexCount[i, j] + DELIMITER);
+                outputFile.WriteLine();
+            }
+        }
+        //----------------------------------------------------------------------------------
+        fileName = "MeshMemoryUsage.txt";
+
+        docPath =
+          Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        using (StreamWriter outputFile = new(Path.Combine(docPath, fileName)))
+        {
+            outputFile.WriteLine(descMemoryUsage);
+            outputFile.WriteLine(HEADER);
+            for (int i = 0; i < arrayLength; i++)
+            {
+                outputFile.Write((i + chunkSizeToTest_MIN_Included).ToString() + DELIMITER);
+                for (int j = 0; j < 4; j++)
+                    outputFile.Write(memoryUsage[i, j] + DELIMITER);
+                outputFile.WriteLine();
+            }
+        }
+        //----------------------------------------------------------------------------------
+
+
+
+
+        yield return null;
+    }
+
+    private void GenerateMeshForChunk(int i)
+    {
+        
+        Vector3Int position = Vector3Int.zero;
+
+        Vector3Int dimensions = new(i, i, i);
+
+        Chunk chunk = new(
+            position,
+            dimensions,
+            transform,
+            i
+            );
+
+        i -= chunkSizeToTest_MIN_Included;
+
+        //-----------------------------------0----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), smoothNoShared);
+
+        smoothedTerrainProcessTime[i, 0] = chunk.GetTimeToGenerate().ToString();
+        terrainTotalVertexCount[i, 0] = chunk.GetTotalVertexCount().ToString();
+        memoryUsage[i, 0] = ((double)chunk.GetMeshMemoryUsage() / 1024).ToString();
+        //-----------------------------------1----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), smoothCubeShared);
+
+        smoothedTerrainProcessTime[i, 1] = chunk.GetTimeToGenerate().ToString();
+        terrainTotalVertexCount[i, 1] = chunk.GetTotalVertexCount().ToString();
+        memoryUsage[i, 1] = ((double)chunk.GetMeshMemoryUsage() / 1024).ToString();
+        //-----------------------------------2----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), smoothMeshShared);
+
+        smoothedTerrainProcessTime[i, 2] = chunk.GetTimeToGenerate().ToString();
+        terrainTotalVertexCount[i, 2] = chunk.GetTotalVertexCount().ToString();
+        memoryUsage[i, 2] = ((double)chunk.GetMeshMemoryUsage() / 1024).ToString();
+        //-----------------------------------3----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), smoothBothShared);
+
+        smoothedTerrainProcessTime[i, 3] = chunk.GetTimeToGenerate().ToString();
+        terrainTotalVertexCount[i, 3] = chunk.GetTotalVertexCount().ToString();
+        memoryUsage[i, 3] = ((double)chunk.GetMeshMemoryUsage() / 1024).ToString();
+        //----------------------------------------------------------------------------
+        //-----------------------------------4----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), roughNoShared);
+
+        roughTerrainProcessTime[i, 0] = chunk.GetTimeToGenerate().ToString();
+        //-----------------------------------5----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), roughCubeShared);
+
+        roughTerrainProcessTime[i, 1] = chunk.GetTimeToGenerate().ToString();
+        //-----------------------------------6----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), roughMeshShared);
+
+        roughTerrainProcessTime[i, 2] = chunk.GetTimeToGenerate().ToString();
+        //-----------------------------------7----------------------------------------
+        chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), roughBothShared);
+
+        roughTerrainProcessTime[i, 3] = chunk.GetTimeToGenerate().ToString();
+        //----------------------------------------------------------------------------
+
+        //yield return null;
+
+    }
+
+    public void WriteTrianglesToFile()
+    {
+        string fileName = "Triangles.txt";
+
+        string docPath =
+          Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        List<int> triangles = new();
+        foreach (var chunk in chunks)
+        {
+            triangles = chunk.GetTriangles();
+            break;
+        }
+
+        using (StreamWriter outputFile = new(Path.Combine(docPath, fileName)))
+        {
+            int i = 1;
+            foreach (var tri in triangles)
+            {
+                if (i == 1 || i == 2)
+                    outputFile.Write(tri.ToString() + "; ");
+                else
+                    outputFile.WriteLine(tri.ToString());
+                i++;
+                if (i == 4)
+                    i = 1;
+            }
+        }
+    }
+
+    public void WriteVertexIndexArrayToFile()
+    {
+        string fileName = "VertexIndexArray.txt";
+
+        string docPath =
+          Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        int[,,,] vertexIndexArray = { };
+        foreach (var chunk in chunks)
+        {
+            vertexIndexArray = chunk.GetVertexIndexArray();
+            break;
+        }
+
+        using (StreamWriter outputFile = new(Path.Combine(docPath, fileName)))
+            for (int x = 0; x < vertexIndexArray.GetLength(0); x++)
+                for (int y = 0; y < vertexIndexArray.GetLength(1); y++)
+                    for (int z = 0; z < vertexIndexArray.GetLength(2); z++)
+                    {
+                        for (int i = 0; i < 12; i++) 
+                        { 
+                            outputFile.Write(vertexIndexArray[x, y, z, i] + "; " );
+                        }
+                        outputFile.WriteLine();
+                    }
     }
 
     public void UpdateChunks()
     {
         foreach (var chunk in chunks)
         {
-            chunk.GenerateTerrain(mapGenerator.GetGenerationParameters());
+            chunk.GenerateTerrain(mapGenerator.GetGenerationParameters(), meshConstructParams);
         }
     }
 
+    
+
+    private void OnValidate()
+    {
+        renderDistance = Mathf.Clamp(renderDistance, 2, 16);
+        meshConstructParams = new MeshConstructParams()
+        {
+            smoothTerrain = smoothTerrain,
+            meshSharedVertices = meshSharedVertices,
+            cubeSharedVertices = cubeSharedVertices,
+            LOD = LOD
+        };
+
+        if (LOD < 0 || LOD >= (int)chunkSize) LOD = 0;
+
+        chunkDimensions = new(
+            (int)Mathf.Pow(2, (int)chunkSize) - 1,
+            255,
+            (int)Mathf.Pow(2, (int)chunkSize) - 1
+            );
+    }
 
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(new Vector3(chunkSizeX / 2, chunkSizeY / 2, chunkSizeZ / 2), new Vector3(chunkSizeX, chunkSizeY, chunkSizeZ));
+        Gizmos.DrawWireCube(new Vector3((float)chunkDimensions.x / 2, (float)chunkDimensions.y / 2, (float)chunkDimensions.z / 2), new Vector3(chunkDimensions.x, chunkDimensions.y, chunkDimensions.z));
     }
+
+    readonly int chunkSizeToTest_MIN_Included = 8;
+    readonly int chunkSizeToTest_MAX_Excluded = 65;
+    int arrayLength;
+
+    const string descSmoothProcessTime= "This table shows the processing times for creating the mesh with surface smoothing enabled";
+    string[,] smoothedTerrainProcessTime;
+
+    const string descRoughProcessTime = "This table shows the processing times for creating the mesh with surface smoothing disabled";
+    string[,] roughTerrainProcessTime;
+
+    const string descTotalVertexCount = "This table shows the total vertex count for the mesh";
+    string[,] terrainTotalVertexCount;
+
+    const string descMemoryUsage = "This table shows the memory used the mesh";
+    string[,] memoryUsage;
+
+    const char DELIMITER = ';';
+
+    readonly string HEADER = 
+        "Dimensions (cube)" + DELIMITER + 
+        "No vertices shared" + DELIMITER + 
+        "Cube verties shared" + DELIMITER + 
+        "Mesh vertices shared" + DELIMITER + 
+        "All vertices shared" + DELIMITER;
+
+    MeshConstructParams smoothNoShared = new()
+    {
+        smoothTerrain = true,
+        cubeSharedVertices = false,
+        meshSharedVertices = false,
+        LOD = 0,
+    };
+
+    MeshConstructParams smoothCubeShared = new()
+    {
+        smoothTerrain = true,
+        cubeSharedVertices = true,
+        meshSharedVertices = false,
+        LOD = 0,
+    };
+
+    MeshConstructParams smoothMeshShared = new()
+    {
+        smoothTerrain = true,
+        cubeSharedVertices = false,
+        meshSharedVertices = true,
+        LOD = 0,
+    };
+
+    MeshConstructParams smoothBothShared = new()
+    {
+        smoothTerrain = true,
+        cubeSharedVertices = true,
+        meshSharedVertices = true,
+        LOD = 0,
+    };
+
+    MeshConstructParams roughNoShared = new()
+    {
+        smoothTerrain = false,
+        cubeSharedVertices = false,
+        meshSharedVertices = false,
+        LOD = 0,
+    };
+
+    MeshConstructParams roughCubeShared = new()
+    {
+        smoothTerrain = false,
+        cubeSharedVertices = true,
+        meshSharedVertices = false,
+        LOD = 0,
+    };
+
+    MeshConstructParams roughMeshShared = new()
+    {
+        smoothTerrain = false,
+        cubeSharedVertices = false,
+        meshSharedVertices = true,
+        LOD = 0,
+    };
+
+    MeshConstructParams roughBothShared = new()
+    {
+        smoothTerrain = false,
+        cubeSharedVertices = true,
+        meshSharedVertices = true,
+        LOD = 0,
+    };
 
 }
