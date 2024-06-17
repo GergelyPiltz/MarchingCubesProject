@@ -9,10 +9,7 @@ public class MapGeneratorEditor : Editor
         MapGenerator mapGenerator = target as MapGenerator;
 
         //Draws default inspector here
-        if (DrawDefaultInspector() && mapGenerator.autoUpdate && Application.isPlaying && mapGenerator.enabled)
-        {
-            mapGenerator.UpdateMapDisplay();
-        }
+        DrawDefaultInspector();
 
         if (GUILayout.Button("Update Display") && Application.isPlaying && mapGenerator.enabled)
         {

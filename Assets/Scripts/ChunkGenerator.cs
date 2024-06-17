@@ -2,12 +2,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
-using System.Net.NetworkInformation;
-using Unity.VisualScripting;
+using TMPro;
 using UnityEngine;
-using UnityEngine.UIElements;
 using static Chunk;
 
 public class ChunkGenerator : MonoBehaviour
@@ -19,22 +16,44 @@ public class ChunkGenerator : MonoBehaviour
     [SerializeField] ChunkSize chunkSize = ChunkSize._16x16;
 
     [SerializeField, Range(0, 8)] int LOD = 0;
+    public void SetLOD(float f)
+    {
+        LOD = (int)f;
+        CheckAndUpdateValues();
+    }
+
     [SerializeField] bool generateOnlyOneChunk = false;
     [SerializeField] bool smoothTerrain = true;
+    public bool SmoothTerrain
+    {
+        get { return smoothTerrain; }
+        set { smoothTerrain = value; CheckAndUpdateValues(); }
+    }
     [SerializeField] bool meshSharedVertices = true;
+    public bool MeshSharedVertices
+    { 
+        get { return meshSharedVertices; } 
+        set { meshSharedVertices = value; CheckAndUpdateValues(); } 
+    }
     [SerializeField] bool cubeSharedVertices = true;
+    public bool CubeSharedVertices
+    {
+        get { return cubeSharedVertices; }
+        set { cubeSharedVertices = value; CheckAndUpdateValues(); }
+    }
     MeshConstructParams meshConstructParams;
 
     [SerializeField] Transform player;
-    [SerializeField, Range(2, 16)] int renderDistance; // not really, cause out of range chunks dont disappear (yet)
-    
+    [SerializeField, Range(2, 16)] int renderDistance = 10; // not really, cause out of range chunks dont disappear (yet)
+
     [SerializeField] bool enableBenchmark = false;
 
     List<Chunk> chunks;
     List<Vector2> chunkList;
     //List<string> dataList;
 
-    
+    [SerializeField] GameObject debug;
+    TextMeshProUGUI debugTmp;
 
 
     int chunkIndex;
@@ -44,10 +63,11 @@ public class ChunkGenerator : MonoBehaviour
     void Start()
     {
         if(!TryGetComponent(out mapGenerator)) enabled = false; // disable the script
-        
         chunks = new List<Chunk> ();
         chunkList = new List<Vector2> ();
         //dataList = new List<string> ();
+
+        Debug.Log(debug.TryGetComponent(out debugTmp));
 
         arrayLength = chunkSizeToTest_MAX_Excluded - chunkSizeToTest_MIN_Included;
         smoothedTerrainProcessTime = new string[arrayLength, 4];
@@ -56,6 +76,27 @@ public class ChunkGenerator : MonoBehaviour
         memoryUsage = new string[arrayLength, 4];
 
         chunkIndex = 0;
+
+        CheckAndUpdateValues();
+
+        for (int i = 0; i < 12; i++)
+            for (int j = 0; j < 12; j++)
+            {
+                Chunk temp = new(
+                        new Vector3Int(i * chunkDimensions.x, 0, j * chunkDimensions.z /*its practically .z*/ ),
+                        chunkSize,
+                        transform,
+                        chunkIndex
+                        );
+
+                chunks.Add(temp);
+                temp.GenerateTerrain(mapGenerator.GetGenerationParameters(), meshConstructParams);
+
+                chunkIndex++;
+            }
+        string s = "Chunks: " + chunks.Count;
+        debugTmp.SetText(s);
+
 
         if (generateOnlyOneChunk && !enableBenchmark)
         {
@@ -68,12 +109,13 @@ public class ChunkGenerator : MonoBehaviour
             temp.GenerateTerrain(mapGenerator.GetGenerationParameters(), meshConstructParams);
             chunks.Add(temp);
         }
-
     }
 
-    private void Update()
+    void Update()
     {
+        return;
         if (generateOnlyOneChunk || enableBenchmark) return;
+        
 
         int playerInWhichChunkX = Mathf.FloorToInt(player.position.x / chunkDimensions.x);
         int playerInWhichChunkZ = Mathf.FloorToInt(player.position.z / chunkDimensions.z);
@@ -81,6 +123,8 @@ public class ChunkGenerator : MonoBehaviour
         Vector2Int playerIsInWhichChunk = new(playerInWhichChunkX, playerInWhichChunkZ);
 
         if (renderDistance % 2 != 0) renderDistance--;
+
+        
 
         for (int i = 0; i <= renderDistance; i++)
         {
@@ -357,7 +401,25 @@ public class ChunkGenerator : MonoBehaviour
         }
     }
 
-    
+    private void CheckAndUpdateValues()
+    {
+        renderDistance = Mathf.Clamp(renderDistance, 2, 16);
+        meshConstructParams = new MeshConstructParams()
+        {
+            smoothTerrain = smoothTerrain,
+            meshSharedVertices = meshSharedVertices,
+            cubeSharedVertices = cubeSharedVertices,
+            LOD = LOD
+        };
+
+        if (LOD < 0 || LOD >= (int)chunkSize) LOD = 0;
+
+        chunkDimensions = new(
+            (int)Mathf.Pow(2, (int)chunkSize) - 1,
+            255,
+            (int)Mathf.Pow(2, (int)chunkSize) - 1
+            );
+    }
 
     private void OnValidate()
     {

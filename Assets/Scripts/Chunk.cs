@@ -111,6 +111,11 @@ public class Chunk
         vertices = new();
         triangles = new();
 
+        GameObject randomCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        randomCube.transform.parent = chunkObject.transform;
+        randomCube.transform.localPosition = Vector3.zero;
+        randomCube.transform.localScale = Vector3.one;
+
     }
 
     // This constructor is for debugging and benchmarking only
