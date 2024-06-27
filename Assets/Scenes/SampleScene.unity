@@ -1966,6 +1966,8 @@ GameObject:
   - component: {fileID: 557942974}
   - component: {fileID: 557942973}
   - component: {fileID: 557942975}
+  - component: {fileID: 557942977}
+  - component: {fileID: 557942976}
   m_Layer: 0
   m_Name: Terrain
   m_TagString: Untagged
@@ -2027,9 +2029,9 @@ MonoBehaviour:
   seed: 101010
   startFrequency: 100
   frequencyModifier: 2
-  startAmplitude: 0.5
+  startAmplitude: 1
   amplitudeModifier: 0.5
-  octaves: 5
+  octaves: 1
   drawMode: 0
   terrainTypes:
   - name: Water
@@ -2049,6 +2051,37 @@ MonoBehaviour:
     color: {r: 1, g: 1, b: 1, a: 0}
   mapImage: {fileID: 1349168728}
   autoUpdate: 1
+--- !u!114 &557942976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 557942972}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2dd06a179b532c945bcd8561002a1496, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  curve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!114 &557942977
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 557942972}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 190d7118e3cbdf34ea5efae44fbf6f04, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  controlSampleFrequency: 200
 --- !u!1 &571389345
 GameObject:
   m_ObjectHideFlags: 0

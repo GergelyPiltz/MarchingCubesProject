@@ -3,7 +3,6 @@ using UnityEngine.UI;
 
 public class MapGenerator : MonoBehaviour
 {
-
     [Header("Display Only")]
     [SerializeField, Min(10)] int width;
     [SerializeField, Min(10)] int height;
@@ -84,10 +83,9 @@ public class MapGenerator : MonoBehaviour
 
         generationParams = new GenerationParams
         {
-            seed = seed,
+            Seed = seed,
             startFrequency = startFrequency,
             frequencyModifier = frequencyModifier,
-            startAmplitude = startAmplitude,
             amplitudeModifier = amplitudeModifier,
             octaves = octaves
         };
@@ -110,10 +108,9 @@ public class MapGenerator : MonoBehaviour
 
         generationParams = new GenerationParams
         {
-            seed = seed,
+            Seed = seed,
             startFrequency = startFrequency,
             frequencyModifier = frequencyModifier,
-            startAmplitude = startAmplitude,
             amplitudeModifier = amplitudeModifier,
             octaves = octaves
         };
@@ -124,8 +121,11 @@ public class MapGenerator : MonoBehaviour
         }
     }
 
+    NoiseGenerator noiseGenerator;
     private void Start()
     {
+        noiseGenerator = NoiseGenerator.Instance;
+
         isMapDisplay = true;
         if (!mapImage)
         {
@@ -148,7 +148,7 @@ public class MapGenerator : MonoBehaviour
     public void UpdateMapDisplay()
     {
         if (!isMapDisplay) return;
-        float[,] noiseMap = Noise.GenerateNoiseMap(width, height, 0, 0, generationParams);
+        float[,] noiseMap = noiseGenerator.GenerateNoiseMap(width, height, 0, 0, generationParams);
         if (drawMode == DrawMode.NoiseMap)
             DrawNoiseMap(noiseMap);
         else
@@ -219,15 +219,7 @@ public class MapGenerator : MonoBehaviour
     }
 }
 
-public struct GenerationParams
-{
-    public int seed;
-    public float startFrequency;
-    public float frequencyModifier;
-    public float startAmplitude;
-    public float amplitudeModifier;
-    public int octaves;
-}
+
 
 [System.Serializable]
 public struct TerrainType

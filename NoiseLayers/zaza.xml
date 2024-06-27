@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Layer>
+    <Type>2D</Type>
+    <Description>asd</Description>
+    <StartFrequency>2000</StartFrequency>
+    <FrequencyModifier>2.0</FrequencyModifier>
+    <AmplitudeModifier>0.5</AmplitudeModifier>
+    <Octaves>3</Octaves>
+    <Seed>asdffffffff</Seed>
+    <Modifier>
+        <Key>
+            <Time>0.4</Time>
+            <Value>0.5</Value>
+        </Key>
+        <Key>
+            <Time>0.4</Time>
+            <Value>0.5</Value>
+        </Key>
+    </Modifier>
+</Layer>
+<Layer>
+    <Type>2D</Type>
+    <Description>asd</Description>
+    <StartFrequency>2000</StartFrequency>
+    <FrequencyModifier>2.0</FrequencyModifier>
+    <AmplitudeModifier>0.5</AmplitudeModifier>
+    <Octaves>3</Octaves>
+    <Seed>asdffffffff</Seed>
+    <Modifier>
+        <Key>
+            <Time>0.4</Time>
+            <Value>0.5</Value>
+        </Key>
+        <Key>
+            <Time>0.4</Time>
+            <Value>0.5</Value>
+        </Key>
+    </Modifier>
+</Layer>

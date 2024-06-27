@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Profiling;
+using UnityEngine.UIElements;
 
 
 // Leave integral type on default int. causes less confusion.
@@ -21,6 +22,8 @@ public enum ChunkSize
 
 public class Chunk
 {
+    public static readonly int size = 16;
+
     readonly GameObject chunkObject;
     readonly Vector3Int chunkPosition;
 
@@ -62,8 +65,34 @@ public class Chunk
 
     readonly int chunkIndex = 0;
 
+    NoiseGenerator noiseGenerator;
+
+    //public Chunk(Vector2Int position, Transform parent, int index)
+    //{
+    //    chunkObject = new GameObject();
+    //    chunkObject.transform.parent = parent;
+    //    chunkObject.name = "Chunk(" + index + ")";
+    //    chunkObject.transform.position = new Vector3(position.x, position.y, 0);
+    //    /*
+    //     * This should be used when declaring the 
+    //     * 
+    //     * readonly int cubesX = 16;
+    //     * readonly int cubesY = 256;
+    //     * readonly int cubesZ = 16;
+    //     * 
+    //     * readonly int valuesX = 17;
+    //     * readonly int valuesY = 257;
+    //     * readonly int valuesZ = 17;
+    //     * 
+    //     * 
+    //     */
+
+    //}
+
     public Chunk(Vector3Int _position, ChunkSize _chunkSize, Transform _parent, int _index)
     {
+        noiseGenerator = NoiseGenerator.Instance;
+
         chunkObject = new GameObject();
         chunkObject.transform.parent = _parent;
         chunkIndex = _index;
@@ -166,7 +195,8 @@ public class Chunk
         cubeSharedVertices = meshConstructParams.cubeSharedVertices;
         LOD = meshConstructParams.LOD;
 
-        noiseMap = Noise.GenerateNoiseMap(
+        ///////////////////////////////////////////////////////////////////////////////////////////////////
+        noiseMap = noiseGenerator.GenerateNoiseMap(
             valuesX,
             valuesZ,
             chunkPosition.x,

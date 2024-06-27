@@ -2,9 +2,11 @@ using UnityEngine;
 
 public static class Noise
 {
+
+
     public static float[,] GenerateNoiseMap(int width, int height, int offsetX, int offsetY, GenerationParams generationParams)
     {
-        Random.InitState(generationParams.seed);
+        Random.InitState(generationParams.Seed);
         Vector2[] octaveOffsets = new Vector2[generationParams.octaves];
         for (int i = 0; i < generationParams.octaves; i++)
         {
@@ -17,7 +19,7 @@ public static class Noise
             {
                 float total = 0f;
                 float frequency = generationParams.startFrequency;
-                float amplitude = generationParams.startAmplitude;
+                float amplitude = 1;
                 for (int i = 0; i < generationParams.octaves; i++)
                 {
 
