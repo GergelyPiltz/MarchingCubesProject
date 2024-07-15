@@ -1,0 +1,58 @@
+﻿#pragma kernel CalculateNoise
+#pragma kernel CalculateTerrainData
+
+#include "../NoiseShader/SimplexNoise2D.hlsl"
+
+int worldHeight;
+int posX;
+int posY; 
+int posZ;
+
+#include "HelperFunctions.hlsl"
+
+int seed;
+float startFrequency;
+float frequencyModifier;
+float amplitudeModifier;
+int octaves;
+
+RWStructuredBuffer<float> noise2DBuffer;
+RWStructuredBuffer<float> terrainDataBuffer;
+
+[numthreads(5, 1, 5)]
+void CalculateNoise(int3 id : SV_DispatchThreadID)
+{
+    float frequency = startFrequency;
+    float amplitude = 1;
+    float total = 0;
+    float totalAmplitudes = 0;
+    
+    for (int i = 0; i < octaves; ++i)
+    {
+        float2 pos = (float2) (id.xz + int2(posX, posZ)) * frequency * 1.618033;
+        
+        float coordX = (id.x + posX) * frequency;
+        float coordZ = (id.z + posZ) * frequency;
+        
+        float sample = (clamp(SimplexNoise(pos), -1, 1) + 1) / 2 * amplitude;
+
+        total += sample;
+        totalAmplitudes += amplitude;
+        
+        frequency *= frequencyModifier;
+        amplitude *= amplitudeModifier;
+    }
+    
+    total /= totalAmplitudes;
+    
+    noise2DBuffer[indexFromCoord(id.xz)] = total;
+    
+}
+
+[numthreads(5, 5, 5)]
+void CalculateTerrainData(uint3 id : SV_DispatchThreadID)
+{
+    terrainDataBuffer[indexFromCoord(id)] =
+    (((float) 1 / worldHeight) * (id.y + posY))
+    - noise2DBuffer[indexFromCoord(id.xz)];
+}

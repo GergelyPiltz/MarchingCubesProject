@@ -1,122 +1,231 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
 public class CubicChunk
 {
-    private readonly GameObject chunkObject;
-    public GameObject ChunkObject { get { return chunkObject; } }
-
-    private readonly Vector3Int position;
-    public Vector3Int Position { get { return position; } }
+    public Vector3Int Position { get; private set; }
+    public readonly GameObject chunkObject;
+    public readonly Transform chunkTransform;
 
     private readonly MeshFilter meshFilter;
     private readonly MeshCollider meshCollider;
     private readonly MeshRenderer meshRenderer;
 
-    private List<Vector3> vertices;
-    private List<int> triangles;
+    private List<Vector3> vertices = new();
+    private List<int> triangles = new();
 
-    public const int cubesPerAxis = 32;
+    public const int cubesPerAxis = 24; // Must be a multiple of 8. Don't change. See below.
     public const int valuesPerAxis = cubesPerAxis + 1;
+    public const int totalValues = valuesPerAxis * valuesPerAxis * valuesPerAxis;
+    //There are hardcoded (only way) values in compute shader. CAREFUL!!!
+    private const int noiseNumThreads = valuesPerAxis / 5; // If cubesPerAxis is changed from 24 it will break. 
+    private const int chunkNumThreads = valuesPerAxis / 8; // If cubesPerAxis is not divisible by 8 it will break. 
 
-    private const float terrainHeight = 0f;
+    //private const float terrainHeight = 0f;
 
-    private static bool smoothTerrain      = false;
-    private static bool meshSharedVertices = false;
-    private static bool cubeSharedVertices = false;
+    private static bool smoothTerrain = false;
+    //private static bool meshSharedVertices = false;
+    //private static bool cubeSharedVertices = false;
     //int LOD = 1;
 
-    private float[,,] terrainData;
-    private ushort[,,,] vertexIndexArray; // By this being ushort we save a whopping 96 KiBs per chunk. 
+    //private float[] terrainData;
+    //private ushort[,,,] vertexIndexArray; // By this being ushort we save a whopping 96 KiBs per chunk. 
 
-    //private AssetProvider assetProvider;
-    private static Assets assetProvider;
+    private static readonly Assets assets;
+    //private static readonly ScriptResources scriptResources;
 
-    public CubicChunk(Vector3Int position, Transform parent)
+    private static readonly ComputeShader marchingCompute;
+    private static readonly ComputeShader noiseCompute;
+
+    static CubicChunk()
     {
-        if (!assetProvider)
-            assetProvider = GameObject.Find("Assets").GetComponent<Assets>();
+        if (!GameObject.Find("Assets").TryGetComponent(out assets))
+            Debug.LogError("Chunk can't find assets. Gameobject with assets must be named \"Assets\"");
 
-        chunkObject = new GameObject();
-        chunkObject.transform.parent = parent;
-        chunkObject.name = "Chunk" + position.ToString();
-        this.position = position;
-        chunkObject.transform.position = this.position;
+        if (GameObject.Find("ScriptResources").TryGetComponent(out ScriptResources scriptResources))
+        {
+            marchingCompute = scriptResources.MarchingCompute;
+            noiseCompute = scriptResources.NoiseCompute;
+        }
+        else
+            Debug.LogError("Chunk can't find scripts. Gameobject with scripts must be named \"ScriptResources\"");
+    }
 
-        //chunkObject.AddComponent<ChunkBorder>();
+    public CubicChunk(Transform parent)
+    {
+        Position = new(0, 0, 0);
+        chunkObject = new("Chunk" + Position.ToString());
+        chunkTransform = chunkObject.transform;
+        chunkTransform.parent = parent;
+        chunkTransform.position = Position;
 
         meshFilter = chunkObject.AddComponent<MeshFilter>();
         meshCollider = chunkObject.AddComponent<MeshCollider>();
         meshRenderer = chunkObject.AddComponent<MeshRenderer>();
         meshRenderer.material = Resources.Load<Material>("Materials/Terrain");
-
-        vertexIndexArray = new ushort[cubesPerAxis, cubesPerAxis, cubesPerAxis, 12];
-
-        vertices = new();
-        triangles = new();
-
-        //assetProvider = AssetProvider.Instance;
     }
 
-    #region Build
+    #region Compute
 
-    public void Build(NoiseMap2D noise2D)
+    struct Triangle
     {
-        CreateTerrainData(noise2D);
-        BuildRest();
-    }
-    
-    public void Build(NoiseMap3D noise3D)
-    {
-        CreateTerrainData(noise3D);
-        BuildRest();
+        public Vector3 vertexA;
+        public Vector3 vertexB;
+        public Vector3 vertexC;
     }
 
-    public void Build(NoiseMap2D noise2D, NoiseMap3D noise3D)
+    private void Compute()
     {
-        CreateTerrainData(noise2D, noise3D);
-        BuildRest();
-    }
+        noiseCompute.SetInt("valuesPerAxis", valuesPerAxis);
+        noiseCompute.SetInt("worldHeight", World.worldHeight);
+        noiseCompute.SetInt("posX", Position.x);
+        noiseCompute.SetInt("posY", Position.y);
+        noiseCompute.SetInt("posZ", Position.z);
 
-    private void BuildRest() // this keeps expending and i dont want to type everything 3 times
-    {
-        CreateMeshData();
-        BuildMesh();
-        DestroyAllChildren();
-        PlaceVegetation();
+        noiseCompute.SetFloat("startFrequency", 0.0005f);
+        noiseCompute.SetFloat("frequencyModifier", 10f);
+        noiseCompute.SetFloat("amplitudeModifier", 0.1f);
+        noiseCompute.SetInt("octaves", 3);
+
+        ComputeBuffer noise2DBuffer = new(valuesPerAxis * valuesPerAxis, sizeof(float));
+        noiseCompute.SetBuffer(0, "noise2DBuffer", noise2DBuffer);
+        noiseCompute.SetBuffer(1, "noise2DBuffer", noise2DBuffer);
+
+        ComputeBuffer terrainDataBuffer = new(totalValues, sizeof(float));
+        noiseCompute.SetBuffer(1, "terrainDataBuffer", terrainDataBuffer);
+
+        noiseCompute.Dispatch(0, noiseNumThreads, 1, noiseNumThreads);
+
+        noiseCompute.Dispatch(1, noiseNumThreads, noiseNumThreads, noiseNumThreads);
+
+        #region ToFile
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //float[] terrainDataBufferArray = new float[totalValues];
+        //terrainDataBuffer.GetData(terrainDataBufferArray);
+        //string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        //string path = Path.Combine(myDocs, "terrainDataBuffer.txt");
+        //using (StreamWriter outputFile = new StreamWriter(path))
+        //{
+        //    for (int x = 0; x < valuesPerAxis; x++)
+        //    {
+        //        for (int y = 0; y < valuesPerAxis; y++)
+        //        {
+        //            for (int z = 0; z < valuesPerAxis; z++)
+        //            {
+        //                outputFile.Write(terrainDataBufferArray[x * valuesPerAxis * valuesPerAxis + y * valuesPerAxis + z] + " ");
+        //            }
+        //            outputFile.WriteLine();
+        //        }
+        //        outputFile.WriteLine();
+        //    }
+        //}
+
+        //float[] noiseBufferArray = new float[valuesPerAxis * valuesPerAxis];
+        //noise2DBuffer.GetData(noiseBufferArray);
+        //path = Path.Combine(myDocs, "noiseBuffer.txt");
+        //using (StreamWriter outputFile = new StreamWriter(path))
+        //{
+        //    for (int x = 0; x < valuesPerAxis; x++)
+        //    {
+        //        for (int z = 0; z < valuesPerAxis; z++)
+        //        {
+        //            outputFile.Write(noiseBufferArray[x * valuesPerAxis + z] + " ");
+        //        }
+        //        outputFile.WriteLine();
+        //    }
+        //}
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        #endregion
+
+        marchingCompute.SetBool("smoothTerrain", smoothTerrain);
+        marchingCompute.SetInt("valuesPerAxis", valuesPerAxis);
+
+        marchingCompute.SetBuffer(0, "terrainDataBuffer", terrainDataBuffer);
+
+        ComputeBuffer triangleBuffer = new(totalValues * 5, sizeof(float) * 3 * 3, ComputeBufferType.Append);
+        triangleBuffer.SetCounterValue(0);
+        marchingCompute.SetBuffer(0, "triangleBuffer", triangleBuffer);
+
+        marchingCompute.Dispatch(0, chunkNumThreads, chunkNumThreads, chunkNumThreads);
+
+        ComputeBuffer triangleCountBuffer = new(1, sizeof(int), ComputeBufferType.Raw);
+        ComputeBuffer.CopyCount(triangleBuffer, triangleCountBuffer, 0);
+        int[] triangleCountArray = new int[1];
+        triangleCountBuffer.GetData(triangleCountArray);
+
+        Triangle[] triangleArray = new Triangle[triangleCountArray[0]];
+        triangleBuffer.GetData(triangleArray);
+
+        noise2DBuffer.Release();
+        triangleBuffer.Release();
+        terrainDataBuffer.Release();
+        triangleCountBuffer.Release();
+
+        triangles.Clear();
+        vertices.Clear();
+
+        for (int i = 0; i < triangleCountArray[0]; i++)
+        {
+            vertices.Add(triangleArray[i].vertexA);
+            triangles.Add(i * 3);
+            vertices.Add(triangleArray[i].vertexB);
+            triangles.Add(i * 3 + 1);
+            vertices.Add(triangleArray[i].vertexC);
+            triangles.Add(i * 3 + 2);
+        }
+
     }
 
     #endregion
 
-    #region Creating terrain data from noise
+    public void MoveAndBuild(Vector3Int position)
+    {
+        Position = position;
+        chunkObject.name = "Chunk" + Position.ToString();
+        chunkTransform.position = Position;
+
+        Compute();
+        ApplyMesh();
+        DestroyAllChildren();
+        PlaceVegetation();
+    }
+
+    public void RecalculateMesh()
+    {
+        Compute();
+        ApplyMesh();
+    }
+
+    /*
+
+    #region Creating terrain data from noise UNUSED
 
     private void CreateTerrainData(NoiseMap2D noise2D)
     {
         if (noise2D.size != valuesPerAxis)
             throw new ArgumentException("Noise layer does not fit chunk");
 
-        terrainData = new float[valuesPerAxis, valuesPerAxis, valuesPerAxis];
+        terrainData = new float[totalValues];
         for (int x = 0; x < valuesPerAxis; x++)
             for (int z = 0; z < valuesPerAxis; z++)
-            {
-                //float height = World.worldHeight * noise2D.noise[x, z];
                 for (int y = 0; y < valuesPerAxis; y++)
-                {
-                    //terrainData[x, y, z] = y + position.y - height;
-                    terrainData[x, y, z] = ((float)1 / World.worldHeight * (y + position.y)) - noise2D.noise[x, z];
-                }
-            }
+                    terrainData[x * valuesPerAxis * valuesPerAxis + y * valuesPerAxis + z] = ((float)1 / World.worldHeight * (y + position.y)) - noise2D.noise[x, z];
                 
     }
 
     private void CreateTerrainData(NoiseMap3D noise3D)
     {
-        if (noise3D.size != valuesPerAxis)
-            throw new ArgumentException("Noise layer does not fit chunk");
+        throw new NotImplementedException();
 
-        terrainData = (noise3D * 2 - 1).noise;
+        //if (noise3D.size != valuesPerAxis)
+        //    throw new ArgumentException("Noise layer does not fit chunk");
+
+        //terrainData = (noise3D * 2 - 1).noise;
     }
 
     private void CreateTerrainData(NoiseMap2D noise2D, NoiseMap3D noise3D)
@@ -131,16 +240,14 @@ public class CubicChunk
         for (int x = 0; x < valuesPerAxis; x++)
             for (int y = 0; y < valuesPerAxis; y++)
                 for (int z = 0; z < valuesPerAxis; z++)
-                    if (terrainData[x, y, z] < terrainHeight)
-                    {
-                        terrainData[x, y, z] *= noise3D.noise[x, y, z];
-                    }
+                    if (terrainData[x * valuesPerAxis * valuesPerAxis + y * valuesPerAxis + z] < terrainHeight) 
+                        terrainData[x * valuesPerAxis * valuesPerAxis + y * valuesPerAxis + z] *= noise3D.noise[x, y, z];
         
     }
 
     #endregion
 
-    #region Marching Cubes
+    #region Marching Cubes UNUSED
 
     private void CreateMeshData()
     {
@@ -148,7 +255,7 @@ public class CubicChunk
         triangles.Clear();
         ResetVertexIndexArray(); // all values to 56535
 
-        float startTime = Time.realtimeSinceStartup;
+        //float startTime = Time.realtimeSinceStartup;
 
         for (int x = 0; x < cubesPerAxis; x++)
             for (int y = 0; y < cubesPerAxis; y++)
@@ -164,7 +271,7 @@ public class CubicChunk
 
                     if (configIndex == 0 || configIndex == 255) continue;
 
-                    for (int vertexCounter = 0; vertexCounter < 15/*16*/; vertexCounter++)
+                    for (int vertexCounter = 0; vertexCounter < 15; vertexCounter++)
                     {
                         int edgeIndex = Tables.TriangleTable[configIndex, vertexCounter];
 
@@ -265,7 +372,7 @@ public class CubicChunk
 
     private float SampleTerrain(Vector3Int point)
     {
-        return terrainData[point.x, point.y, point.z];
+        return terrainData[point.x * valuesPerAxis * valuesPerAxis + point.y * valuesPerAxis + point.z];
     }
 
     private void ResetVertexIndexArray()
@@ -279,7 +386,9 @@ public class CubicChunk
 
     #endregion
 
-    private void BuildMesh()
+    */
+
+    private void ApplyMesh()
     {
         Mesh mesh = new()
         {
@@ -294,10 +403,8 @@ public class CubicChunk
 
     private void DestroyAllChildren()
     {
-        foreach (Transform child in chunkObject.transform)
-        {
+        foreach (Transform child in chunkTransform)
             GameObject.Destroy(child.gameObject);
-        }
     }
 
     private readonly int numberOfObjectsToTryMax = 5;
@@ -311,16 +418,15 @@ public class CubicChunk
 
         for (byte i = 0; i < tries; i++)
         {
-            Vector3 origin = new(Random.value * cubesPerAxis + position.x, World.worldHeight, Random.value * cubesPerAxis + position.z);
-            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit/*, World.worldHeight, vegetationLayer*/))
+            Vector3 origin = new(Random.value * cubesPerAxis + Position.x, World.worldHeight, Random.value * cubesPerAxis + Position.z);
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit))
                 if (Vector3.Angle(Vector3.up, hit.normal) < 50f)
                 {
-                    int x = Random.Range(0, assetProvider.vegetation.Length - 1);
+                    int x = Random.Range(0, assets.vegetation.Length - 1);
                     Quaternion rotation = Quaternion.Euler( new (0, Random.Range(0, 360), 0));
                     Vector3 pos = hit.point - new Vector3(0, 0.5f, 0);
 
-                    GameObject veg = GameObject.Instantiate(assetProvider.vegetation[x], pos, rotation, chunkObject.transform);
-                    //veg.layer = vegetationLayer;
+                    GameObject veg = GameObject.Instantiate(assets.vegetation[x], pos, rotation, chunkTransform);
 
                     float scale = Random.Range(scaleMultiplier - scaleMultiplier * scaleRange, scaleMultiplier + scaleMultiplier * scaleRange);
                     Vector3 scaleVect = new(scale, scale, scale);
@@ -328,6 +434,11 @@ public class CubicChunk
                     veg.transform.localScale = scaleVect;
                 }
         }
+    }
+
+    public void SetActive(bool b)
+    {
+        chunkObject.SetActive(b);
     }
 
     /// <summary>
@@ -339,8 +450,8 @@ public class CubicChunk
     public static void SetTerainParameters(bool smoothTerrain, bool meshSharedVertices, bool cubeSharedVertices)
     {
         CubicChunk.smoothTerrain = smoothTerrain;
-        CubicChunk.meshSharedVertices = meshSharedVertices;
-        CubicChunk.cubeSharedVertices = cubeSharedVertices;
+        //CubicChunk.meshSharedVertices = meshSharedVertices;
+        //CubicChunk.cubeSharedVertices = cubeSharedVertices;
     }
 
     [Serializable] public enum TerrainProfile{ Smooth, Blocky }

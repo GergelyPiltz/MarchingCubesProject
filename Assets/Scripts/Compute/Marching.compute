@@ -1,0 +1,92 @@
+#pragma kernel GetTriangles
+#include "Tables.hlsl"
+
+struct Triangle
+{
+    float3 vertexA;
+    float3 vertexB;
+    float3 vertexC;
+};
+
+AppendStructuredBuffer<Triangle> triangleBuffer;
+StructuredBuffer<float> terrainDataBuffer;
+
+float terrainHeight = 0;
+
+bool smoothTerrain;
+
+#include "HelperFunctions.hlsl"
+
+float3 calculateSmoothed(int3 pos, int edgeIndex)
+{
+    uint3 vert1 = pos + CornerTable[EdgeTable[edgeIndex][0]];
+    uint3 vert2 = pos + CornerTable[EdgeTable[edgeIndex][1]];
+    
+    uint vert1Index = indexFromCoord(vert1);
+    uint vert2Index = indexFromCoord(vert2);
+    
+    float vert1Sample = terrainDataBuffer[vert1Index];
+    float vert2Sample = terrainDataBuffer[vert2Index];
+
+    float difference = vert2Sample - vert1Sample;
+
+    difference = (terrainHeight - vert1Sample) / difference;
+
+    return vert1 + (float3) (vert2 - vert1) * difference;
+}
+
+float3 calculateRough(int3 pos, int edgeIndex)
+{
+    float3 vert1 = CornerTable[EdgeTable[edgeIndex][0]];
+    float3 vert2 = CornerTable[EdgeTable[edgeIndex][1]];
+    
+    return pos + (vert1 + vert2) / 2;
+}
+
+[numthreads(8, 8, 8)]
+void GetTriangles (int3 id : SV_DispatchThreadID)
+{
+    
+    int configIndex = 0;
+    for (int i = 0; i < 8; ++i)
+    {
+        int3 cornerPos = id + CornerTable[i];
+        int linearIndex = indexFromCoord(cornerPos);
+        if (terrainDataBuffer[linearIndex] > terrainHeight)
+            configIndex |= 1 << i;
+    }
+    
+    if (configIndex == 0 || configIndex == 255)
+        return;
+
+    for (int vertexCounter = 0; vertexCounter < 15 && TriangleTable[configIndex][vertexCounter] != -1; vertexCounter += 3)
+    {   
+        Triangle _triangle;
+        
+        int edgeIndex;
+        if(smoothTerrain)
+        {
+            edgeIndex = TriangleTable[configIndex][vertexCounter];
+            _triangle.vertexA = calculateSmoothed(id, edgeIndex);
+        
+            edgeIndex = TriangleTable[configIndex][vertexCounter + 1];
+            _triangle.vertexB = calculateSmoothed(id, edgeIndex);
+        
+            edgeIndex = TriangleTable[configIndex][vertexCounter + 2];
+            _triangle.vertexC = calculateSmoothed(id, edgeIndex);
+        }
+        else
+        {
+            edgeIndex = TriangleTable[configIndex][vertexCounter];
+            _triangle.vertexA = calculateRough(id, edgeIndex);
+        
+            edgeIndex = TriangleTable[configIndex][vertexCounter + 1];
+            _triangle.vertexB = calculateRough(id, edgeIndex);
+        
+            edgeIndex = TriangleTable[configIndex][vertexCounter + 2];
+            _triangle.vertexC = calculateRough(id, edgeIndex);
+        }
+     
+        triangleBuffer.Append(_triangle);
+    }
+}

@@ -1,27 +1,34 @@
-using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Xml.Serialization;
-using TMPro;
+using System.Linq;
+using System.Security.Cryptography;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class World : MonoBehaviour
 {
-    
+    [SerializeField] private int radius;
+    private int maxRenderRadius;
+
+    private List<Vector2Int> ring;
+    private List<Vector2Int> circle;
+    private List<Vector2Int> oldColumns = new();
+    private Dictionary<Vector2Int, CubicChunk[]> renderedColumns = new();
+    private GameObject poolObj;
+    private Transform poolTransform;
+    private GameObject activeObj;
+    private Transform activeTransform;
+    private List<CubicChunk> pool = new();
+    private int inPool = 0;
+    private int active = 0;
+
+    private GameObject player;
+    private Transform playerTransform;
+
     public const int verticalChunks = 16;
     public const int worldHeight = CubicChunk.cubesPerAxis * verticalChunks;
 
-    [SerializeField] RawImage oneChunkNoise;
-    [SerializeField] RawImage mapNoise;
-    [SerializeField] GameObject chunkCounterObj;
-    TextMeshProUGUI chunkCounterTMP;
-
     [SerializeField] Transform generateIndicator;
     [SerializeField] Transform removeIndicator;
-
-    [SerializeField] bool use2DNoise;
-    [SerializeField] bool use3DNoise;
 
     [Header("2D")]
     [SerializeField] float startFrequency2D;
@@ -35,49 +42,19 @@ public class World : MonoBehaviour
     [SerializeField] float amplitudeModifier3D;
     [SerializeField] int octaves3D;
 
-    LayerParameters layerParameters2D;
-    LayerParameters layerParameters3D;
-
-    NoiseLayer2D noise2Dgenerator;
-    NoiseLayer3D noise3Dgenerator;
-
     [Header("Terrain Profile")]
     [SerializeField] CubicChunk.TerrainProfile terrainProfile;
-    private void OnValidate()
-    {
-        CubicChunk.SetTerrainProfile(terrainProfile);
 
-        layerParameters2D = new LayerParameters()
-        {
-            startFrequency = startFrequency2D,
-            frequencyModifier = frequencyModifier2D,
-            amplitudeModifier = amplitudeModifier2D,
-            octaves = octaves2D,
-        };
-
-        layerParameters3D = new LayerParameters()
-        {
-            startFrequency = startFrequency3D,
-            frequencyModifier = frequencyModifier3D,
-            amplitudeModifier = amplitudeModifier3D,
-            octaves = octaves3D,
-        };
-        if (noise2Dgenerator != null || noise3Dgenerator != null)
-        {
-            noise2Dgenerator.LayerParams = layerParameters2D;
-            noise3Dgenerator.LayerParams = layerParameters3D;
-        }
-    }
+    private bool dynamicRender = true;
 
     void Start()
     {
-        if (generateIndicator)
-            generateIndicator.localScale = new Vector3 (CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis);
-        if (removeIndicator)
-            removeIndicator.localScale = new Vector3(CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis);
+        CubicChunk.SetTerrainProfile(terrainProfile);
 
-        if (chunkCounterObj)
-            chunkCounterObj.TryGetComponent(out chunkCounterTMP);
+        //if (generateIndicator)
+        //    generateIndicator.localScale = new Vector3 (CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis);
+        //if (removeIndicator)
+        //    removeIndicator.localScale = new Vector3(CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis, CubicChunk.cubesPerAxis);
 
         player = GameObject.Find("Player");
         if (player == null)
@@ -85,184 +62,176 @@ public class World : MonoBehaviour
         else
             playerTransform = player.transform;
 
-        currentlyRenderedChunks = new();
-
-        #region OnValidate in build i should stop using onvalidate
-
-        layerParameters2D = new LayerParameters()
+        poolObj = new()
         {
-            startFrequency = startFrequency2D,
-            frequencyModifier = frequencyModifier2D,
-            amplitudeModifier = amplitudeModifier2D,
-            octaves = octaves2D,
+            name = "Pool (0)"
         };
+        poolTransform = poolObj.transform;
 
-        layerParameters3D = new LayerParameters()
+        activeObj = new()
         {
-            startFrequency = startFrequency3D,
-            frequencyModifier = frequencyModifier3D,
-            amplitudeModifier = amplitudeModifier3D,
-            octaves = octaves3D,
+            name = "Active (0)"
         };
+        activeTransform = activeObj.transform;
 
-        #endregion
+        ring = CalculateRing(radius, CubicChunk.cubesPerAxis);
+        circle = CalculateCircle(radius, CubicChunk.cubesPerAxis);
+        maxRenderRadius = (int) Mathf.Pow((radius + 2) * CubicChunk.cubesPerAxis, 2);
 
-        noise2Dgenerator = new(layerParameters2D);
-        noise3Dgenerator = new(layerParameters3D);
+        for (int i = 0; i < 12; i++)
+            StartCoroutine(CreateColumn(circle[i], verticalChunks, CubicChunk.cubesPerAxis, 0));
 
-        if (dynamicRender)
-        {
-            for (int y = 0; y < verticalChunks; y++)
-                for (int x = -2; x < 2; x++)
-                    for (int z = -2; z < 2; z++)
-                    {
-                        Vector3Int chunkPosition = new Vector3Int(x, y, z) * CubicChunk.cubesPerAxis;
+        int count = circle.Count;
+        for (int i = 12; i < count; i++)
+            StartCoroutine(CreateColumn(circle[i], verticalChunks, CubicChunk.cubesPerAxis, i * 0.1f));
 
-                        CubicChunk chunk = new(chunkPosition, transform);
-
-                        currentlyRenderedChunks.Add(chunkPosition, chunk);
-
-                        NoiseMap3D noise3d = noise3Dgenerator.GetNoiseMap(chunkPosition);
-                        NoiseMap2D noise2d = noise2Dgenerator.GetNoiseMap(chunkPosition.x, chunkPosition.z);
-
-                        if (use2DNoise && !use3DNoise) // this mess 
-                        {
-                            chunk.Build(noise2d);
-                        }
-                        else if (!use2DNoise && use3DNoise)
-                        {
-                            chunk.Build(noise3d);
-                        }
-                        else if (use2DNoise && use3DNoise)
-                        {
-                            chunk.Build(noise2d, noise3d);
-                        }
-
-                    }
-            if (Physics.Raycast(new (0, worldHeight, 0), Vector3.down, out RaycastHit hit))
-                playerTransform.position = hit.point + new Vector3(0, 2, 0);
-        }
-        else
-        {
-            for (int x = -5; x < 5; x++)
-                for (int z = -5; z < 5; z++)
-                {
-                    int horizontalOffsetX = x * CubicChunk.cubesPerAxis;
-                    int horizontalOffsetZ = z * CubicChunk.cubesPerAxis;
-                    NoiseMap2D noise2d = noise2Dgenerator.GetNoiseMap(horizontalOffsetX, horizontalOffsetZ);
-
-                    for (int y = 0; y < verticalChunks; y++)
-                    {
-                        Vector3Int chunkPosition = new(horizontalOffsetX, y * CubicChunk.cubesPerAxis, horizontalOffsetZ);
-
-                        CubicChunk chunk = new(chunkPosition, transform);
-                        currentlyRenderedChunks.Add(chunkPosition, chunk);
-                        NoiseMap3D noise3d = noise3Dgenerator.GetNoiseMap(chunkPosition);
-
-                        if (use2DNoise && !use3DNoise) // this mess
-                        {
-                            chunk.Build(noise2d);
-                        }
-                        else if (!use2DNoise && use3DNoise)
-                        {
-                            chunk.Build(noise3d);
-                        }
-                        else if (use2DNoise && use3DNoise)
-                        {
-                            chunk.Build(noise2d, noise3d);
-                        }
-                    }
-                }
-        }
+        StartCoroutine(PlacePlayer());
     }
 
-    [Header("Rendering Options")]
-    private GameObject player;
-    private Transform playerTransform;
-    [SerializeField] private bool dynamicRender = true;
-    [SerializeField] private int renderdistance = 5;
-    Dictionary<Vector3Int, CubicChunk> currentlyRenderedChunks;
+    private IEnumerator PlacePlayer()
+    {
+        yield return new WaitForSeconds(1);
+        if (Physics.Raycast(new Vector3(0, worldHeight, 0), Vector3.down, out RaycastHit hit))
+            playerTransform.position = hit.point + new Vector3(0, 2, 0);
+    }
 
+    Vector2Int playerChunkPos = new (0, 0);
     void Update()
     {
-        if (chunkCounterTMP)
-            chunkCounterTMP.SetText("Number of Chunks: " + currentlyRenderedChunks.Count);
+        if (!dynamicRender) return;
 
-        if (player == null || !dynamicRender) return;
+        Vector2Int newPos = Vector2FloorToNearestMultipleOf(ToVector2FromXZ(playerTransform.position), CubicChunk.cubesPerAxis);
 
-        //double time = Time.realtimeSinceStartupAsDouble;
+        if (newPos == playerChunkPos)
+            return;
+        else
+            playerChunkPos = newPos;
 
-        foreach (var chunk in currentlyRenderedChunks)
+        float delay = 0;
+        foreach (Vector2Int offset in ring)
         {
-            if (Vector3.Distance(chunk.Key, playerTransform.position) > (renderdistance * 2 + 1) * CubicChunk.cubesPerAxis)
-            {
-                removeIndicator.position = chunk.Key;
-                // do some logic of leaving behind chunks. disable? destroy? save?
-                Destroy(chunk.Value.ChunkObject);
-                currentlyRenderedChunks.Remove(chunk.Key);
-                break; // only one chunk removed per frame. no big deal.
-            }
-            else
-            {
-                //chunk.Value.Update();
-            }
+            delay += 0.01f;
+            Vector2Int c = playerChunkPos + offset;
+            if (!renderedColumns.ContainsKey(c))
+                StartCoroutine(CreateColumn(c, verticalChunks, CubicChunk.cubesPerAxis, delay));
         }
 
-
-        Vector3Int playerPos = Vector3Int.FloorToInt(playerTransform.position);
-        Vector3Int playerChunk = Vector3IntFloorToNearestMultipleOf(playerPos, CubicChunk.cubesPerAxis);
-        
-        bool breakAll = false;
-        for (int y = -renderdistance; y < renderdistance; y++)
+        foreach (var c in renderedColumns)
         {
-            for (int x = -renderdistance; x < renderdistance; x++)
-            {
-                for (int z = -renderdistance; z < renderdistance; z++)
-                {
-                    Vector3Int currentLoopPosition = new Vector3Int(x, y, z) * CubicChunk.cubesPerAxis;
-                    Vector3Int chunkPosition = playerChunk + currentLoopPosition;
-
-                    if (chunkPosition.y >= worldHeight || chunkPosition.y < 0) continue;
-
-                    if (!currentlyRenderedChunks.ContainsKey(chunkPosition))
-                    {
-                        if (generateIndicator)
-                            generateIndicator.position = chunkPosition;
-
-                        CubicChunk chunk = new(chunkPosition, transform);
-
-                        currentlyRenderedChunks.Add(chunkPosition, chunk);
-
-                        NoiseMap3D noise3d = noise3Dgenerator.GetNoiseMap(chunkPosition);
-                        NoiseMap2D noise2d = noise2Dgenerator.GetNoiseMap(chunkPosition.x, chunkPosition.z);
-
-                        if (use2DNoise && !use3DNoise) // this mess 
-                        {
-                            chunk.Build(noise2d);
-                        }
-                        else if (!use2DNoise && use3DNoise)
-                        {
-                            chunk.Build(noise3d);
-                        }
-                        else if (use2DNoise && use3DNoise)
-                        {
-                            chunk.Build(noise2d, noise3d);
-                        }
-
-                        //time = Time.realtimeSinceStartupAsDouble - time;
-                        //if (time >= (double)1 / 60) breakAll = true;
-                        breakAll = true; // only one chunk is generated per frame
-                    }
-
-                    
-
-                    if (breakAll) break;
-                }
-                if (breakAll) break;
-            }
-            if (breakAll) break;
+            if ((playerChunkPos - c.Key).sqrMagnitude > maxRenderRadius)
+                oldColumns.Add(c.Key);
         }
-                
+
+        foreach (Vector2Int c in oldColumns)
+        {
+            if (renderedColumns.TryGetValue(c, out CubicChunk[] old))
+            {
+                renderedColumns.Remove(c);
+                DisposeOfColumn(old);
+            }
+        }
+        oldColumns.Clear();
+    }
+
+    private IEnumerator CreateColumn(Vector2Int pos, int height, int step, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        CubicChunk[] column = new CubicChunk[height];
+        for (int y = 0; y < height; y++)
+        {
+            column[y] = GetFromPool();
+            column[y].MoveAndBuild(new Vector3Int(pos.x, y * step, pos.y));
+        }
+        renderedColumns.Add(pos, column);
+        //return column;
+        yield return null;
+    }
+
+    private void DisposeOfColumn(CubicChunk[] column)
+    {
+        foreach (var c in column)
+            ReturnToPool(c);
+    }
+
+    private CubicChunk GetFromPool()
+    {
+        CubicChunk c;
+        if (inPool > 0)
+        {
+            inPool--;
+            poolObj.name = "Pool (" + inPool + ")";
+
+            c = pool[0];
+            pool.RemoveAt(0);
+            c.SetActive(true);
+        }
+        else
+            c = new(activeTransform);
+
+        active++;
+        activeObj.name = "Active (" + active + ")";
+        c.chunkTransform.parent = activeTransform;
+        return c;
+    }
+
+    private void ReturnToPool(CubicChunk c)
+    {
+        inPool++;
+        poolObj.name = "Pool (" + inPool + ")";
+        if (active > 0)
+        {
+            active--;
+            activeObj.name = "Active (" + active + ")";
+        }
+
+        c.SetActive(false);
+        c.chunkTransform.parent = poolTransform;
+        pool.Add(c);
+    }
+
+    private List<Vector2Int> CalculateRing(int radius, int multiplier)
+    {
+        List<Vector2Int> rim = new();
+        for (int x = -radius + 1; x < radius; x++)
+            for (int z = -radius + 1; z < radius; z++)
+            {
+                Vector2Int pos = new(x, z);
+                float dist = Vector2Int.Distance(Vector2Int.zero, pos);
+                if (dist <= radius && dist >= radius - 2)
+                    rim.Add(pos * multiplier);
+            }
+
+        return rim;
+    }
+
+    private List<Vector2Int> CalculateCircle(int radius, int multiplier)
+    {
+        Dictionary<Vector2Int, float> coords = new();
+        for (int x = -radius + 1; x < radius; x++)
+            for (int z = -radius + 1; z < radius; z++)
+            {
+                Vector2Int pos = new(x, z);
+                float dist = Vector2Int.Distance(Vector2Int.zero, pos);
+                if (dist <= radius)
+                    coords.Add(pos, dist);
+            }
+
+        var ordered = coords.OrderBy(x => x.Value);
+        List<Vector2Int> circle = new();
+        foreach (var item in ordered)
+            circle.Add(item.Key * multiplier);
+
+        return circle;
+    }
+
+    Vector2 ToVector2FromXZ(Vector3 v)
+    {
+        return new Vector2(v.x, v.z);
+    }
+
+    Vector2Int ToVector2FromXZ(Vector3Int v)
+    {
+        return new Vector2Int(v.x, v.z);
     }
 
     /// <summary>
@@ -272,7 +241,7 @@ public class World : MonoBehaviour
     /// <param name="vector"> Vector3Int to be floored </param>
     /// <param name="multipleOf"> [component] - [component] % [multipleOf]</param>
     /// <returns></returns>
-    Vector3Int Vector3IntFloorToNearestMultipleOf(Vector3Int vector, int multipleOf)
+    private Vector3Int Vector3FloorToNearestMultipleOf(Vector3Int vector, int multipleOf)
     {
         int x = vector.x - vector.x % multipleOf;
         int y = vector.y - vector.y % multipleOf;
@@ -280,121 +249,43 @@ public class World : MonoBehaviour
         return new Vector3Int(x, y, z);
     }
 
-    public void BuildChunks()
+    /// <summary>
+    /// Floors each component of a Vector3 to the nearest multiple of the specified value.
+    /// Example: (-4,15,17) with 5 results in (-5,15,15)
+    /// </summary>
+    /// <param name="vector"> Vector3 to be floored </param>
+    /// <param name="multipleOf"> [component] - [component] % [multipleOf]</param>
+    /// <returns></returns>
+    private Vector3Int Vector3FloorToNearestMultipleOf(Vector3 vector, int multipleOf)
     {
-        noise3Dgenerator = new(layerParameters3D);
-        noise2Dgenerator = new(layerParameters2D);
-        foreach (var chunk in currentlyRenderedChunks)
-        {
-            Vector3Int position = chunk.Key;
-            if (use2DNoise && !use3DNoise) // search "this mess" to find instances of this mess later
-            {
-                NoiseMap2D noise2d = noise2Dgenerator.GetNoiseMap(position.x, position.z);
-                chunk.Value.Build(noise2d);
-            }
-            else if (!use2DNoise && use3DNoise)
-            {
-                NoiseMap3D noise3d = noise3Dgenerator.GetNoiseMap(position);
-                chunk.Value.Build(noise3d);
-            }
-            else if (use2DNoise && use3DNoise)
-            {
-                NoiseMap2D noise2d = noise2Dgenerator.GetNoiseMap(position.x, position.z);
-                NoiseMap3D noise3d = noise3Dgenerator.GetNoiseMap(position);
-                chunk.Value.Build(noise2d, noise3d);
-            }
-        }
+        return Vector3FloorToNearestMultipleOf(Vector3Int.FloorToInt(vector), multipleOf);
     }
 
-    public void PainNoiseToScreen()
+    /// <summary>
+    /// Floors each component of a Vector2Int to the nearest multiple of the specified value.
+    /// Example: (-4,17) with 5 results in (-5,15)
+    /// </summary>
+    /// <param name="vector"> Vector2Int to be floored </param>
+    /// <param name="multipleOf"> [component] - [component] % [multipleOf]</param>
+    /// <returns></returns>
+    private Vector2Int Vector2FloorToNearestMultipleOf(Vector2Int vector, int multipleOf)
     {
-        NoiseLayer2D localNoiseGen = new NoiseLayer2D(layerParameters2D);
-
-        NoiseMap2D noise = localNoiseGen.GetNoiseMap(-5, -5, 10 * CubicChunk.valuesPerAxis);
-        mapNoise.texture = (Texture2D)noise;
-
-
-        string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Noise_Map.jpg");
-        byte[] bytes = ImageConversion.EncodeToJPG((Texture2D)noise);
-        File.WriteAllBytes(path, bytes);
-
-        noise = localNoiseGen.GetNoiseMap(0, 0);
-        oneChunkNoise.texture = (Texture2D)noise;
-
-        path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Noise_Chunk.jpg");
-        bytes = ImageConversion.EncodeToJPG((Texture2D)noise);
-        File.WriteAllBytes(path, bytes);
-        
+        int x = vector.x - vector.x % multipleOf;
+        int y = vector.y - vector.y % multipleOf;
+        return new Vector2Int(x, y);
     }
 
-    public void ReadParamsFromFile()
+    /// <summary>
+    /// Floors each component of a Vector2 to the nearest multiple of the specified value.
+    /// Example: (-4,17) with 5 results in (-5,15)
+    /// </summary>
+    /// <param name="vector"> Vector2 to be floored </param>
+    /// <param name="multipleOf"> [component] - [component] % [multipleOf]</param>
+    /// <returns></returns>
+    private Vector2Int Vector2FloorToNearestMultipleOf(Vector2 vector, int multipleOf)
     {
-        List<NoiseLayer> layers = new List<NoiseLayer>();
-        foreach (string file in Directory.GetFiles("NoiseLayers", "*.json"))
-        {
-            string contents = File.ReadAllText(file);
-
-        }
-
-        string fileName = "NoiseLayers2D.json";
-        string jsonString;
-
-        using (StreamReader inputFile = new(fileName))
-        {
-            jsonString = inputFile.ReadToEnd();
-        }
-
-        NoiseLayer2D[] noiseLayers2D = JsonUtility.FromJson<NoiseLayer2D[]>(jsonString);
-
+        return Vector2FloorToNearestMultipleOf(Vector2Int.FloorToInt(vector), multipleOf);
     }
+
 
 }
-
-namespace Xml2CSharp
-{
-    [XmlRoot(ElementName = "key")]
-    public class Key
-    {
-        [XmlElement(ElementName = "time")]
-        public string Time { get; set; }
-        [XmlElement(ElementName = "value")]
-        public string Value { get; set; }
-    }
-
-    [XmlRoot(ElementName = "Modifier")]
-    public class Modifier
-    {
-        [XmlElement(ElementName = "key")]
-        public List<Key> Key { get; set; }
-    }
-
-    [XmlRoot(ElementName = "Layer")]
-    public class Layer
-    {
-        [XmlElement(ElementName = "Type")]
-        public string Type { get; set; }
-        [XmlElement(ElementName = "Description")]
-        public string Description { get; set; }
-        [XmlElement(ElementName = "StartFrequency")]
-        public string StartFrequency { get; set; }
-        [XmlElement(ElementName = "FrequencyModifier")]
-        public string FrequencyModifier { get; set; }
-        [XmlElement(ElementName = "AmplitudeModifier")]
-        public string AmplitudeModifier { get; set; }
-        [XmlElement(ElementName = "Octaves")]
-        public string Octaves { get; set; }
-        [XmlElement(ElementName = "Seed")]
-        public string Seed { get; set; }
-        [XmlElement(ElementName = "Modifier")]
-        public Modifier Modifier { get; set; }
-    }
-
-    [XmlRoot(ElementName = "XML")]
-    public class XML
-    {
-        [XmlElement(ElementName = "Layer")]
-        public Layer Layer { get; set; }
-    }
-
-}
-

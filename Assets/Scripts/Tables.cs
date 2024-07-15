@@ -1,7 +1,3 @@
-// Sources:
-// https://github.com/b3agz/how-to-make-7-days-to-die-in-unity/blob/master/01-marching-cubes/Marching.cs
-// https://github.com/SebLague/Marching-Cubes/blob/master/Assets/Scripts/Compute/Includes/MarchTables.compute
-// https://paulbourke.net/geometry/polygonise/
 
 using UnityEngine;
 
@@ -49,6 +45,10 @@ public static class Tables
             
         */
     };
+// Sources:
+// https://github.com/b3agz/how-to-make-7-days-to-die-in-unity/blob/master/01-marching-cubes/Marching.cs
+// https://github.com/SebLague/Marching-Cubes/blob/master/Assets/Scripts/Compute/Includes/MarchTables.compute
+// https://paulbourke.net/geometry/polygonise/
 
     public static readonly Vector3Int[] CornerTable = new Vector3Int[] {
 
