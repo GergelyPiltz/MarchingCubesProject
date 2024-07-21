@@ -19,7 +19,7 @@ int octaves;
 RWStructuredBuffer<float> noise2DBuffer;
 RWStructuredBuffer<float> terrainDataBuffer;
 
-[numthreads(5, 1, 5)]
+[numthreads(1, 1, 1)]
 void CalculateNoise(int3 id : SV_DispatchThreadID)
 {
     float frequency = startFrequency;
@@ -49,7 +49,7 @@ void CalculateNoise(int3 id : SV_DispatchThreadID)
     
 }
 
-[numthreads(5, 5, 5)]
+[numthreads(1, 1, 1)]
 void CalculateTerrainData(uint3 id : SV_DispatchThreadID)
 {
     terrainDataBuffer[indexFromCoord(id)] =

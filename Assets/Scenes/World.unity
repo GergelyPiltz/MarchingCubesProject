@@ -565,7 +565,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b19970727c35d948abfb378e965ed20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 10
+  radius: 30
   generateIndicator: {fileID: 1869568279}
   removeIndicator: {fileID: 1492854365}
   startFrequency2D: 0.002
@@ -576,7 +576,7 @@ MonoBehaviour:
   frequencyModifier3D: 2
   amplitudeModifier3D: 0.5
   octaves3D: 3
-  terrainProfile: 0
+  terrainProfile: 1
 --- !u!4 &427167710
 Transform:
   m_ObjectHideFlags: 0
@@ -2464,6 +2464,7 @@ GameObject:
   - component: {fileID: 1095466145}
   - component: {fileID: 1095466147}
   - component: {fileID: 1095466146}
+  - component: {fileID: 1095466148}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2615,6 +2616,18 @@ MonoBehaviour:
   maxSlopeAngle: 50
   orientation: {fileID: 1549485419}
   state: 0
+--- !u!114 &1095466148
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1095466140}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b32c578c306372449249883fb27cb0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1162861643
 GameObject:
   m_ObjectHideFlags: 0

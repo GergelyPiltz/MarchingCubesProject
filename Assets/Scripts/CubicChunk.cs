@@ -1,11 +1,20 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
 public class CubicChunk
 {
+    public static float maxComputeTime = 0f;
+    public static float avgComputeTime = 0f;
+    public static float totalComputeTime = 0f;
+    public static int totalComputes = 0;
+
+    public static float maxBuildTime = 0f;
+    public static float avgBuildTime = 0f;
+    public static float totalBuildTime = 0f;
+    public static int totalBuilds = 0;
+
     public Vector3Int Position { get; private set; }
     public readonly GameObject chunkObject;
     public readonly Transform chunkTransform;
@@ -17,12 +26,12 @@ public class CubicChunk
     private List<Vector3> vertices = new();
     private List<int> triangles = new();
 
-    public const int cubesPerAxis = 24; // Must be a multiple of 8. Don't change. See below.
+    public const int cubesPerAxis = 16; // CAREFUL!!!
     public const int valuesPerAxis = cubesPerAxis + 1;
     public const int totalValues = valuesPerAxis * valuesPerAxis * valuesPerAxis;
-    //There are hardcoded (only way) values in compute shader. CAREFUL!!!
-    private const int noiseNumThreads = valuesPerAxis / 5; // If cubesPerAxis is changed from 24 it will break. 
-    private const int chunkNumThreads = valuesPerAxis / 8; // If cubesPerAxis is not divisible by 8 it will break. 
+    //There are hardcoded (only way) values in compute shaders. 
+    private const int marchingNumThreads = cubesPerAxis / 4; // Divided by what's in the compute shader
+    private const int noiseNumThreads = valuesPerAxis / 1; // Divided by what's in the compute shader
 
     //private const float terrainHeight = 0f;
 
@@ -31,14 +40,11 @@ public class CubicChunk
     //private static bool cubeSharedVertices = false;
     //int LOD = 1;
 
-    //private float[] terrainData;
+    private float[] terrainData = new float[totalValues];
     //private ushort[,,,] vertexIndexArray; // By this being ushort we save a whopping 96 KiBs per chunk. 
 
     private static readonly Assets assets;
     //private static readonly ScriptResources scriptResources;
-
-    private static readonly ComputeShader marchingCompute;
-    private static readonly ComputeShader noiseCompute;
 
     static CubicChunk()
     {
@@ -49,6 +55,26 @@ public class CubicChunk
         {
             marchingCompute = scriptResources.MarchingCompute;
             noiseCompute = scriptResources.NoiseCompute;
+
+            // General values for Noise
+            noiseCompute.SetInt("valuesPerAxis", valuesPerAxis); // Constant
+            noiseCompute.SetInt("worldHeight", World.worldHeight); // Constant
+                                                                   // Noise parameters
+            noiseCompute.SetFloat("startFrequency", 0.0005f);
+            noiseCompute.SetFloat("frequencyModifier", 10f);
+            noiseCompute.SetFloat("amplitudeModifier", 0.1f);
+            noiseCompute.SetInt("octaves", 3);
+            // Noise buffers
+            noiseCompute.SetBuffer(0, "noise2DBuffer", noise2DBuffer);
+            noiseCompute.SetBuffer(1, "noise2DBuffer", noise2DBuffer);
+            noiseCompute.SetBuffer(1, "terrainDataBuffer", terrainDataBuffer);
+
+            // General values for Marching Cubes
+            marchingCompute.SetBool("smoothTerrain", smoothTerrain); // Can change
+            marchingCompute.SetInt("valuesPerAxis", valuesPerAxis); // Constant
+                                                                    // Marching buffers
+            marchingCompute.SetBuffer(0, "terrainDataBuffer", terrainDataBuffer);
+            marchingCompute.SetBuffer(0, "triangleBuffer", triangleBuffer);
         }
         else
             Debug.LogError("Chunk can't find scripts. Gameobject with scripts must be named \"ScriptResources\"");
@@ -57,7 +83,7 @@ public class CubicChunk
     public CubicChunk(Transform parent)
     {
         Position = new(0, 0, 0);
-        chunkObject = new("Chunk" + Position.ToString());
+        chunkObject = new("Chunk (Uninitialized)");
         chunkTransform = chunkObject.transform;
         chunkTransform.parent = parent;
         chunkTransform.position = Position;
@@ -77,94 +103,36 @@ public class CubicChunk
         public Vector3 vertexC;
     }
 
-    private void Compute()
+    private static readonly ComputeShader marchingCompute;
+    private static readonly ComputeShader noiseCompute;
+
+    private static readonly ComputeBuffer noise2DBuffer = new(valuesPerAxis * valuesPerAxis, sizeof(float));
+    private static readonly ComputeBuffer terrainDataBuffer = new(totalValues, sizeof(float));
+    private static readonly ComputeBuffer triangleBuffer = new(totalValues * 5, sizeof(float) * 3 * 3, ComputeBufferType.Append);
+    private static readonly ComputeBuffer triangleCountBuffer = new(1, sizeof(int), ComputeBufferType.Raw);
+    private int[] triangleCountArray = new int[1];
+    private void ComputeNoise()
     {
-        noiseCompute.SetInt("valuesPerAxis", valuesPerAxis);
-        noiseCompute.SetInt("worldHeight", World.worldHeight);
         noiseCompute.SetInt("posX", Position.x);
         noiseCompute.SetInt("posY", Position.y);
         noiseCompute.SetInt("posZ", Position.z);
 
-        noiseCompute.SetFloat("startFrequency", 0.0005f);
-        noiseCompute.SetFloat("frequencyModifier", 10f);
-        noiseCompute.SetFloat("amplitudeModifier", 0.1f);
-        noiseCompute.SetInt("octaves", 3);
-
-        ComputeBuffer noise2DBuffer = new(valuesPerAxis * valuesPerAxis, sizeof(float));
-        noiseCompute.SetBuffer(0, "noise2DBuffer", noise2DBuffer);
-        noiseCompute.SetBuffer(1, "noise2DBuffer", noise2DBuffer);
-
-        ComputeBuffer terrainDataBuffer = new(totalValues, sizeof(float));
-        noiseCompute.SetBuffer(1, "terrainDataBuffer", terrainDataBuffer);
-
         noiseCompute.Dispatch(0, noiseNumThreads, 1, noiseNumThreads);
-
         noiseCompute.Dispatch(1, noiseNumThreads, noiseNumThreads, noiseNumThreads);
 
-        #region ToFile
+        terrainDataBuffer.GetData(terrainData);
+    }
 
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //float[] terrainDataBufferArray = new float[totalValues];
-        //terrainDataBuffer.GetData(terrainDataBufferArray);
-        //string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        //string path = Path.Combine(myDocs, "terrainDataBuffer.txt");
-        //using (StreamWriter outputFile = new StreamWriter(path))
-        //{
-        //    for (int x = 0; x < valuesPerAxis; x++)
-        //    {
-        //        for (int y = 0; y < valuesPerAxis; y++)
-        //        {
-        //            for (int z = 0; z < valuesPerAxis; z++)
-        //            {
-        //                outputFile.Write(terrainDataBufferArray[x * valuesPerAxis * valuesPerAxis + y * valuesPerAxis + z] + " ");
-        //            }
-        //            outputFile.WriteLine();
-        //        }
-        //        outputFile.WriteLine();
-        //    }
-        //}
-
-        //float[] noiseBufferArray = new float[valuesPerAxis * valuesPerAxis];
-        //noise2DBuffer.GetData(noiseBufferArray);
-        //path = Path.Combine(myDocs, "noiseBuffer.txt");
-        //using (StreamWriter outputFile = new StreamWriter(path))
-        //{
-        //    for (int x = 0; x < valuesPerAxis; x++)
-        //    {
-        //        for (int z = 0; z < valuesPerAxis; z++)
-        //        {
-        //            outputFile.Write(noiseBufferArray[x * valuesPerAxis + z] + " ");
-        //        }
-        //        outputFile.WriteLine();
-        //    }
-        //}
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        #endregion
-
-        marchingCompute.SetBool("smoothTerrain", smoothTerrain);
-        marchingCompute.SetInt("valuesPerAxis", valuesPerAxis);
-
-        marchingCompute.SetBuffer(0, "terrainDataBuffer", terrainDataBuffer);
-
-        ComputeBuffer triangleBuffer = new(totalValues * 5, sizeof(float) * 3 * 3, ComputeBufferType.Append);
+    private void ComputeMesh()
+    {
         triangleBuffer.SetCounterValue(0);
-        marchingCompute.SetBuffer(0, "triangleBuffer", triangleBuffer);
+        marchingCompute.Dispatch(0, marchingNumThreads, marchingNumThreads, marchingNumThreads);
 
-        marchingCompute.Dispatch(0, chunkNumThreads, chunkNumThreads, chunkNumThreads);
-
-        ComputeBuffer triangleCountBuffer = new(1, sizeof(int), ComputeBufferType.Raw);
         ComputeBuffer.CopyCount(triangleBuffer, triangleCountBuffer, 0);
-        int[] triangleCountArray = new int[1];
         triangleCountBuffer.GetData(triangleCountArray);
 
         Triangle[] triangleArray = new Triangle[triangleCountArray[0]];
         triangleBuffer.GetData(triangleArray);
-
-        noise2DBuffer.Release();
-        triangleBuffer.Release();
-        terrainDataBuffer.Release();
-        triangleCountBuffer.Release();
 
         triangles.Clear();
         vertices.Clear();
@@ -178,26 +146,73 @@ public class CubicChunk
             vertices.Add(triangleArray[i].vertexC);
             triangles.Add(i * 3 + 2);
         }
+    }
 
+    public static void ReleaseBuffers()
+    {
+        noise2DBuffer.Release();
+        triangleBuffer.Release();
+        terrainDataBuffer.Release();
+        triangleCountBuffer.Release();
     }
 
     #endregion
 
-    public void MoveAndBuild(Vector3Int position)
+    public void ModifyTerrain(Vector3 pos, bool place)
     {
+        ModifyTerrain(Vector3Int.FloorToInt(pos), place);
+    }
+
+    public void ModifyTerrain(Vector3Int pos, bool place)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            int index = IndexFromCoord(pos + Tables.CornerTable[i]);
+            if (place)
+                terrainData[index] = 1;
+            else
+                terrainData[index] = -1;
+        }
+
+        terrainDataBuffer.SetData(terrainData);
+        ComputeMesh();
+        ApplyMesh();
+    }
+
+    int IndexFromCoord(Vector3Int coord)
+    {
+        return coord.x * valuesPerAxis * valuesPerAxis + coord.y * valuesPerAxis + coord.z;
+    }
+
+    public void Move(Vector3Int position)
+    {
+        chunkObject.SetActive(false);
         Position = position;
         chunkObject.name = "Chunk" + Position.ToString();
-        chunkTransform.position = Position;
+        chunkTransform.position = Position; 
+    }
 
-        Compute();
+    public void Build()
+    {
+        float time = Time.realtimeSinceStartup;
+
+        ComputeNoise();
+        ComputeMesh();
         ApplyMesh();
-        DestroyAllChildren();
-        PlaceVegetation();
+        chunkObject.SetActive(true);
+        //DestroyAllChildren();
+        //PlaceVegetation();
+
+        time = Time.realtimeSinceStartup - time;
+        if (time > maxBuildTime) maxBuildTime = time;
+        totalBuilds++;
+        totalBuildTime += time;
+        avgBuildTime = totalBuildTime / totalBuilds;
     }
 
     public void RecalculateMesh()
     {
-        Compute();
+        ComputeNoise();
         ApplyMesh();
     }
 
@@ -452,6 +467,8 @@ public class CubicChunk
         CubicChunk.smoothTerrain = smoothTerrain;
         //CubicChunk.meshSharedVertices = meshSharedVertices;
         //CubicChunk.cubeSharedVertices = cubeSharedVertices;
+
+        marchingCompute.SetBool("smoothTerrain", smoothTerrain);
     }
 
     [Serializable] public enum TerrainProfile{ Smooth, Blocky }
@@ -467,3 +484,46 @@ public class CubicChunk
             SetTerainParameters(false, false, false);
     }
 }
+
+
+
+#region ToFile
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//float[] terrainDataBufferArray = new float[totalValues];
+//terrainDataBuffer.GetData(terrainDataBufferArray);
+//string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+//string path = Path.Combine(myDocs, "terrainDataBuffer.txt");
+//using (StreamWriter outputFile = new StreamWriter(path))
+//{
+//    for (int x = 0; x < valuesPerAxis; x++)
+//    {
+//        for (int y = 0; y < valuesPerAxis; y++)
+//        {
+//            for (int z = 0; z < valuesPerAxis; z++)
+//            {
+//                outputFile.Write(terrainDataBufferArray[x * valuesPerAxis * valuesPerAxis + y * valuesPerAxis + z] + " ");
+//            }
+//            outputFile.WriteLine();
+//        }
+//        outputFile.WriteLine();
+//    }
+//}
+
+//float[] noiseBufferArray = new float[valuesPerAxis * valuesPerAxis];
+//noise2DBuffer.GetData(noiseBufferArray);
+//path = Path.Combine(myDocs, "noiseBuffer.txt");
+//using (StreamWriter outputFile = new StreamWriter(path))
+//{
+//    for (int x = 0; x < valuesPerAxis; x++)
+//    {
+//        for (int z = 0; z < valuesPerAxis; z++)
+//        {
+//            outputFile.Write(noiseBufferArray[x * valuesPerAxis + z] + " ");
+//        }
+//        outputFile.WriteLine();
+//    }
+//}
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#endregion

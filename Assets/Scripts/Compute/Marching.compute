@@ -43,7 +43,7 @@ float3 calculateRough(int3 pos, int edgeIndex)
     return pos + (vert1 + vert2) / 2;
 }
 
-[numthreads(8, 8, 8)]
+[numthreads(4, 4, 4)]
 void GetTriangles (int3 id : SV_DispatchThreadID)
 {
     
