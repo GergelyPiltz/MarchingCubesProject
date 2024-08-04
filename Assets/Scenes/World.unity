@@ -565,9 +565,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b19970727c35d948abfb378e965ed20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 30
-  generateIndicator: {fileID: 1869568279}
-  removeIndicator: {fileID: 1492854365}
+  spawnDistance: 20
   startFrequency2D: 0.002
   frequencyModifier2D: 2
   amplitudeModifier2D: 0.5

@@ -19,15 +19,14 @@ public class PlaceOrBreak : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Mouse0))
             if (Physics.Raycast(mainCamera.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, maxDistance))
             {
-                CubicChunk chunk = world.GetChunk(hit.point);
-                chunk.ModifyTerrain(hit.point - chunk.Position, false);
+                world.ModifyBlock(hit.point, false);
                 Debug.Log("Destroy");
             }
 
         if (Input.GetKeyDown(KeyCode.Mouse1))
             if (Physics.Raycast(mainCamera.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, maxDistance))
             {
-                world.GetChunk(hit.point).ModifyTerrain(hit.point, true);
+                world.ModifyBlock(hit.point, true);
                 Debug.Log("Place");
             }
     }

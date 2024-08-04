@@ -1,22 +1,23 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class World : MonoBehaviour
 {
-    [SerializeField] private int radius;
-    private int sqrMaxRenderRadius;
+    [SerializeField] private int spawnDistance;
+    private int despawnDistance;
+    //private int innerDiameter;
+    private int outerDiameter;
+    private Vector2Int center2;
+    private Vector3Int center3;
 
     private GameObject player;
     private Transform playerTransform;
 
     public const int verticalChunks = 16;
     public const int worldHeight = CubicChunk.cubesPerAxis * verticalChunks;
-
-
-    [SerializeField] Transform generateIndicator;
-    [SerializeField] Transform removeIndicator;
 
     [Header("2D")]
     [SerializeField] float startFrequency2D;
@@ -37,6 +38,14 @@ public class World : MonoBehaviour
 
     void Start()
     {
+        despawnDistance = spawnDistance + 6;
+        //innerDiameter = spawnDistance * 2 + 1;
+        outerDiameter = despawnDistance * 2 + 1;
+        center2 = new(despawnDistance, despawnDistance);
+        center3 = new(despawnDistance, verticalChunks / 2, despawnDistance);
+
+        renderedChunks = new CubicChunk[outerDiameter, verticalChunks, outerDiameter];
+
         CubicChunk.SetTerrainProfile(terrainProfile);
 
         //if (generateIndicator)
@@ -50,38 +59,27 @@ public class World : MonoBehaviour
         else
             playerTransform = player.transform;
 
-        poolObj = new()
-        {
-            name = "Pool (0)"
-        };
+        poolObj = new("Pool (0)");
         poolTransform = poolObj.transform;
 
-        activeObj = new()
-        {
-            name = "Active (0)"
-        };
-        activeTransform = activeObj.transform;
+        worldObj = new("Active (0)");
+        worldTransform = worldObj.transform;
 
-        ring = CalculateRing(radius, CubicChunk.cubesPerAxis);
-        circle = CalculateCircle(radius, CubicChunk.cubesPerAxis);
-        sqrMaxRenderRadius = (int) Mathf.Pow((radius + 2) * CubicChunk.cubesPerAxis, 2);
+        innerRing = CalculateRing(spawnDistance, center2, outerDiameter);
+        outerRing = CalculateRing(despawnDistance, center2, outerDiameter);
+        circle = CalculateCircle(spawnDistance, center2, outerDiameter);
 
-        CubicChunk[] column;
         foreach (Vector2Int offset in circle)
-        {
-            Vector2Int c = playerChunkPos + offset;
-
-            column = new CubicChunk[verticalChunks];
             for (int y = 0; y < verticalChunks; y++)
             {
                 CubicChunk cubicChunk = GetFromPool();
-                column[y] = cubicChunk;
-                Vector3Int position = new(c.x, y * CubicChunk.cubesPerAxis, c.y);
+                renderedChunks[offset.x, y, offset.y] = cubicChunk;
+                Vector2Int horizontalPos = /*playerChunk + */(offset - center2) * CubicChunk.cubesPerAxis; // playerchunk is (0, 0)
+                Vector3Int position = new(horizontalPos.x, y * CubicChunk.cubesPerAxis, horizontalPos.y);
                 cubicChunk.Move(position);
                 chunksToBuild.Add(cubicChunk);
             }
-            renderedColumns.Add(c, column);
-        }
+        
         
         StartCoroutine(PlacePlayer());
     }
@@ -95,21 +93,22 @@ public class World : MonoBehaviour
         playerTransform.position = hit.point + new Vector3(0, 2, 0);
     }
 
-    private List<Vector2Int> ring;
+    private List<Vector2Int> innerRing;
+    private List<Vector2Int> outerRing;
     private List<Vector2Int> circle;
-    private List<Vector2Int> oldColumns = new();
-    private Dictionary<Vector2Int, CubicChunk[]> renderedColumns = new();
+    private CubicChunk[,,] renderedChunks;
     private GameObject poolObj;
     private Transform poolTransform;
-    private GameObject activeObj;
-    private Transform activeTransform;
+    private GameObject worldObj;
+    private Transform worldTransform;
     private List<CubicChunk> pool = new();
     private int inPool = 0;
     private int inWorld = 0;
     private List<CubicChunk> chunksToBuild = new();
     private List<CubicChunk> finishedBuild = new();
     private readonly int buildsPerFrame = 10;
-    private Vector2Int playerChunkPos = new (0, 0);
+    private Vector2Int oldPos = new (0, 0);
+    private Vector2Int playerChunk;
     void Update()
     {
         //Debug.Log("Runtimes:" +
@@ -136,58 +135,68 @@ public class World : MonoBehaviour
         finishedBuild.Clear();
 
         // Check if the player moved chunks
-        Vector2Int newPos = Vector2FloorToNearestMultipleOf(ToVector2FromXZ(playerTransform.position), CubicChunk.cubesPerAxis);
-        if (newPos == playerChunkPos)
-            return;
-        else
-            playerChunkPos = newPos;
+        playerChunk = Vector2FloorToNearestMultipleOf(ToVector2FromXZ(playerTransform.position), CubicChunk.cubesPerAxis);
+        if (playerChunk == oldPos) return;
 
-        // Check all chunks for ones outside render distance 
-        foreach (var c in renderedColumns)
-            if ((playerChunkPos - c.Key).sqrMagnitude > sqrMaxRenderRadius)
-                oldColumns.Add(c.Key);
+        if (playerChunk.x > oldPos.x)
+            for (int x = 0; x < outerDiameter - 1; x++)
+                for (int z = 0; z < outerDiameter; z++)
+                    for (int y = 0; y < verticalChunks; y++)
+                        renderedChunks[x, y, z] = renderedChunks[x + 1, y, z];
+        else if (playerChunk.x < oldPos.x)
+            for (int x = outerDiameter - 2; x >= 0; x--)
+                for (int z = 0; z < outerDiameter; z++)
+                    for (int y = 0; y < verticalChunks; y++)
+                        renderedChunks[x + 1, y, z] = renderedChunks[x, y, z];
+                
+        if (playerChunk.y > oldPos.y)
+            for (int x = 0; x < outerDiameter; x++)
+                for (int z = 0; z < outerDiameter - 1; z++)
+                    for (int y = 0; y < verticalChunks; y++)
+                        renderedChunks[x, y, z] = renderedChunks[x, y, z + 1];
+        else if (playerChunk.y < oldPos.y)
+            for (int x = 0; x < outerDiameter; x++)
+                for (int z = outerDiameter - 2; z >= 0; z--)
+                    for (int y = 0; y < verticalChunks; y++)
+                        renderedChunks[x, y, z + 1] = renderedChunks[x, y, z];
+                
+        oldPos = playerChunk;
 
-        // Dispose of chunks outside render distance
-        foreach (Vector2Int c in oldColumns)
-            if (renderedColumns.TryGetValue(c, out CubicChunk[] column))
-            {
-                renderedColumns.Remove(c);
-                DisposeOfColumn(column);
-            }
-        oldColumns.Clear();
-
-        // Check outer ring in rendered chunks for missing ones
-        foreach (Vector2Int offset in ring)
+        foreach (Vector2Int offset in innerRing)
         {
-            Vector2Int c = playerChunkPos + offset;
-            if (!renderedColumns.ContainsKey(c))
-                renderedColumns.Add(c, CreateColumn(c));
+            if (renderedChunks[offset.x, 0, offset.y] == null)
+            {
+                Vector2Int horizontalPos = playerChunk + (offset - center2) * CubicChunk.cubesPerAxis;
+                for (int y = 0; y < verticalChunks; y++)
+                {
+                    CubicChunk c = GetFromPool();
+                    renderedChunks[offset.x, y, offset.y] = c;
+                    Vector3Int pos = new(horizontalPos.x, y * CubicChunk.cubesPerAxis, horizontalPos.y);
+                    c.Move(pos);
+                    chunksToBuild.Add(c);
+                }
+            }
         }
+            
+
+        foreach (Vector2Int v in outerRing)
+        {
+            if (renderedChunks[v.x, 0, v.y] != null)
+            {
+                for (int y = 0; y < verticalChunks; y++)
+                {
+                    ReturnToPool(renderedChunks[v.x, y, v.y]);
+                    renderedChunks[v.x, y, v.y] = null;
+                }
+            }
+        }
+            
 
     }
 
     private void OnApplicationQuit()
     {
         CubicChunk.ReleaseBuffers();
-    }
-
-    private CubicChunk[] CreateColumn(Vector2Int pos)
-    {
-        CubicChunk[] column = new CubicChunk[verticalChunks];
-        for (int y = 0; y < verticalChunks; y++)
-        {
-            CubicChunk cubicChunk = GetFromPool();
-            column[y] = cubicChunk;
-            cubicChunk.Move(new(pos.x, y * CubicChunk.cubesPerAxis, pos.y));
-            chunksToBuild.Add(cubicChunk);
-        }
-        return column;
-    }
-
-    private void DisposeOfColumn(CubicChunk[] column)
-    {
-        foreach (var c in column)
-            ReturnToPool(c);
     }
 
     private CubicChunk GetFromPool()
@@ -203,11 +212,11 @@ public class World : MonoBehaviour
             c.SetActive(true);
         }
         else
-            c = new(activeTransform);
+            c = new(worldTransform);
 
         inWorld++;
-        activeObj.name = "Active (" + inWorld + ")";
-        c.chunkTransform.parent = activeTransform;
+        worldObj.name = "Active (" + inWorld + ")";
+        c.chunkTransform.parent = worldTransform;
         return c;
     }
 
@@ -218,7 +227,7 @@ public class World : MonoBehaviour
         if (inWorld > 0)
         {
             inWorld--;
-            activeObj.name = "Active (" + inWorld + ")";
+            worldObj.name = "Active (" + inWorld + ")";
         }
 
         c.SetActive(false);
@@ -226,29 +235,29 @@ public class World : MonoBehaviour
         pool.Add(c);
     }
 
-    private List<Vector2Int> CalculateRing(int radius, int multiplier)
+    private List<Vector2Int> CalculateRing(int radius, Vector2Int center, int gridSize)
     {
         List<Vector2Int> ring = new();
-        for (int x = -radius + 1; x < radius; x++)
-            for (int z = -radius + 1; z < radius; z++)
+        for (int x = 0; x < gridSize; x++)
+            for (int y = 0; y < gridSize; y++)
             {
-                Vector2Int pos = new(x, z);
-                float dist = Vector2Int.Distance(Vector2Int.zero, pos);
-                if (dist <= radius && dist >= radius - 2)
-                    ring.Add(pos * multiplier);
+                Vector2Int pos = new(x, y);
+                float dist = Vector2Int.Distance(center, pos);
+                if (dist < radius + 1 && dist >= radius + 1 - 2)
+                    ring.Add(pos);
             }
 
         return ring;
     }
 
-    private List<Vector2Int> CalculateCircle(int radius, int multiplier)
+    private List<Vector2Int> CalculateCircle(int radius, Vector2Int center, int gridSize)
     {
         Dictionary<Vector2Int, float> coords = new();
-        for (int x = -radius + 1; x < radius; x++)
-            for (int z = -radius + 1; z < radius; z++)
+        for (int x = 0; x < gridSize; x++)
+            for (int y = 0; y < gridSize; y++)
             {
-                Vector2Int pos = new(x, z);
-                float dist = Vector2Int.Distance(Vector2Int.zero, pos);
+                Vector2Int pos = new(x, y);
+                float dist = Vector2Int.Distance(center, pos);
                 if (dist <= radius)
                     coords.Add(pos, dist);
             }
@@ -256,14 +265,15 @@ public class World : MonoBehaviour
         var ordered = coords.OrderBy(x => x.Value);
         List<Vector2Int> circle = new();
         foreach (var item in ordered)
-            circle.Add(item.Key * multiplier);
+            circle.Add(item.Key);
 
         return circle;
     }
 
-    private List<Vector3Int> CreateVariations(Vector3Int pos)
+    private List<Vector3Int[]> CreateVariationsWithOffset(Vector3Int pos)
     {
-        List<Vector3Int> variations = new(){ pos };
+        List<Vector3Int[]> variations = new (){ new []{ pos, new(0, 0, 0) } };
+        //List<Vector3Int> offsets = new(){ new(0, 0, 0) };
 
         for (int i = 0; i < 3; i++)
         {
@@ -272,9 +282,11 @@ public class World : MonoBehaviour
                 int count = variations.Count;
                 for (int j = 0; j < count; j++)
                 {
-                    Vector3Int v = variations[j];
+                    Vector3Int v = variations[j][0];
                     v[i] = 16;
-                    variations.Add(v);
+                    Vector3Int o = variations[j][1];
+                    o[i] = -1;
+                    variations.Add(new[] { v, o });
                 }
             }
             else if (pos[i] == 16)
@@ -282,9 +294,11 @@ public class World : MonoBehaviour
                 int count = variations.Count;
                 for (int j = 0; j < count; j++)
                 {
-                    Vector3Int v = variations[j];
+                    Vector3Int v = variations[j][0];
                     v[i] = 0;
-                    variations.Add(v);
+                    Vector3Int o = variations[j][1];
+                    o[i] = +1;
+                    variations.Add(new[] { v, o });
                 }
             }
         }
@@ -304,85 +318,45 @@ public class World : MonoBehaviour
         //return variations.Distinct();
     }
 
-    //public Vector3Int[] GetChunkKeys(Vector3 pos)
-    //{
-    //    Vector3Int posInt = Vector3Int.FloorToInt(pos);
+    private Vector3Int GetIndexOfChunk(Vector3Int chunkPos)
+    {
+        return center3 - ((renderedChunks[center3.x, center3.y, center3.z].Position - chunkPos) / CubicChunk.cubesPerAxis);
+    }
 
-    //    Vector3Int[] corners = new Vector3Int[8];
-    //    for (int i = 0; i < 8; i++)
-    //        corners[i] = posInt + Tables.CornerTable[i];
-
-    //    Vector3Int[] overlaps = new Vector3Int[8];
-    //    for (int i = 0; i < 8; i++)
-    //        for (int j = 0; j < 3; j++)
-    //            if (corners[i][j] == 16)
-    //                corners[i][j] = 0;
-
-
-
-
-
-    //    int modX = posInt.x % CubicChunk.cubesPerAxis;
-    //    int modY = posInt.y % CubicChunk.cubesPerAxis;
-    //    int modZ = posInt.z % CubicChunk.cubesPerAxis;
-
-    //    bool negBorderOnX = modX == 0;
-    //    bool negBorderOnY = modY == 0;
-    //    bool negBorderOnZ = modZ == 0;
-
-    //    bool posBorderOnX = modX == 0;
-    //    bool posBorderOnY = modY == 0;
-    //    bool posBorderOnZ = modZ == 0;
-
-    //    int keyX = posInt.x - modX;
-    //    int keyY = posInt.y - modY;
-    //    int keyZ = posInt.z - modZ;
-
-    //    List<Vector3Int> keys = new()
-    //    {
-    //        new(keyX, keyY, keyZ)
-    //    };
-
-    //    if (negBorderOnX)
-    //        keys.Add(new(keyX - CubicChunk.cubesPerAxis, keyY, keyZ));
-    //    if (negBorderOnY)
-    //        keys.Add(new(keyX, keyY - CubicChunk.cubesPerAxis, keyZ));
-    //    if (negBorderOnZ)
-    //        keys.Add(new(keyX, keyY, keyZ - CubicChunk.cubesPerAxis));
-
-    //    if (posBorderOnX)
-    //        keys.Add(new(keyX + CubicChunk.cubesPerAxis, keyY, keyZ));
-    //    if (posBorderOnY)
-    //        keys.Add(new(keyX, keyY + CubicChunk.cubesPerAxis, keyZ));
-    //    if (posBorderOnZ)
-    //        keys.Add(new(keyX, keyY, keyZ + CubicChunk.cubesPerAxis));
-
-    //    //public static readonly Vector3Int[] CornerTable = new Vector3Int[] {
-    //    //    new (0, 0, 0),
-    //    //    new (1, 0, 0),
-    //    //    new (1, 1, 0),
-    //    //    new (0, 1, 0),
-    //    //    new (0, 0, 1),
-    //    //    new (1, 0, 1),
-    //    //    new (1, 1, 1),
-    //    //    new (0, 1, 1)
-    //    //};
-
-
-    //}
-
-    public CubicChunk GetChunk(Vector3 pos)
+    public void ModifyBlock(Vector3 pos, bool place)
     {
         Vector3Int chunkPos = Vector3FloorToNearestMultipleOf(pos, CubicChunk.cubesPerAxis);
-        if(renderedColumns.TryGetValue(ToVector2FromXZ(chunkPos), out CubicChunk[] column))
+        Vector3Int chunkIndex = GetIndexOfChunk(chunkPos);
+
+        Vector3Int coordInChunk = Vector3Int.FloorToInt(pos) - chunkPos;
+        Vector3Int[] corners = new Vector3Int[8];
+        for (int i = 0; i < 8; i++)
+            corners[i] = coordInChunk + Tables.CornerTable[i];
+
+        List<Vector3Int[]> allVariations = CreateVariationsWithOffset(corners[0]);
+        for (int i = 1; i < 8; i++)
+            allVariations.Concat(CreateVariationsWithOffset(corners[i]));
+
+        CubicChunk c;
+        foreach (Vector3Int[] v in allVariations)
         {
-            Debug.Log(chunkPos.y / CubicChunk.cubesPerAxis);
-            return column[chunkPos.y / CubicChunk.cubesPerAxis];
-        }
-        else
-        {
-            Debug.Log("Something went wrong");
-            return null;
+            Vector3Int indexWithOffset = chunkIndex + v[1];
+            if ((c = renderedChunks[indexWithOffset.x, indexWithOffset.y, indexWithOffset.z]) != null)
+            {
+                Debug.Log(v[0] + " - " + v[1]);
+                if (place)
+                {
+                    c.OverwriteTerrainValue(v[0], 1);
+                    c.RecalculateMesh();
+                }
+                else
+                {
+                    c.OverwriteTerrainValue(v[0], -1);
+                    c.RecalculateMesh();
+                }
+            }
+            else
+                Debug.Log("No chunk found at " + chunkPos + "with index " + chunkIndex);
         }
     }
 

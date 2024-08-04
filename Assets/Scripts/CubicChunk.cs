@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -158,28 +159,17 @@ public class CubicChunk
 
     #endregion
 
-    public void ModifyTerrain(Vector3 pos, bool place)
+    public void OverwriteTerrainValue(Vector3Int valueCoord, float value)
     {
-        ModifyTerrain(Vector3Int.FloorToInt(pos), place);
+        terrainData[IndexFromCoord(valueCoord)] = value;
     }
 
-    public void ModifyTerrain(Vector3Int pos, bool place)
+    public void AddToTerrainValue(Vector3Int valueCoord, float value)
     {
-        for (int i = 0; i < 8; i++)
-        {
-            int index = IndexFromCoord(pos + Tables.CornerTable[i]);
-            if (place)
-                terrainData[index] = 1;
-            else
-                terrainData[index] = -1;
-        }
-
-        terrainDataBuffer.SetData(terrainData);
-        ComputeMesh();
-        ApplyMesh();
+        terrainData[IndexFromCoord(valueCoord)] = value;
     }
 
-    int IndexFromCoord(Vector3Int coord)
+    private int IndexFromCoord(Vector3Int coord)
     {
         return coord.x * valuesPerAxis * valuesPerAxis + coord.y * valuesPerAxis + coord.z;
     }
@@ -212,7 +202,8 @@ public class CubicChunk
 
     public void RecalculateMesh()
     {
-        ComputeNoise();
+        terrainDataBuffer.SetData(terrainData);
+        ComputeMesh();
         ApplyMesh();
     }
 
