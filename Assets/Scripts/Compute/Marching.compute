@@ -11,6 +11,7 @@ struct Triangle
 AppendStructuredBuffer<Triangle> triangleBuffer;
 StructuredBuffer<float> terrainDataBuffer;
 
+
 float terrainHeight = 0;
 
 bool smoothTerrain;

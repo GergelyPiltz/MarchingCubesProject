@@ -159,9 +159,36 @@ public class CubicChunk
 
     #endregion
 
+    public void OverwriteBlock(Vector3Int block, float value)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            int index = IndexFromCoord(block + Tables.CornerTable[i]);
+            if (index < terrainData.GetLength(0))
+                terrainData[index] = value;
+            else
+                Debug.Log("index out of range");            
+        }
+    }
+
     public void OverwriteTerrainValue(Vector3Int valueCoord, float value)
     {
-        terrainData[IndexFromCoord(valueCoord)] = value;
+
+        int index = IndexFromCoord(valueCoord);
+        try
+        {
+            if (index >= terrainData.GetLength(0))
+            {
+                Debug.Log("Invalid index: " + index);
+                return;
+            }
+            terrainData[index] = value;
+        }
+        catch (IndexOutOfRangeException)
+        {
+            Debug.Log("Length: " + terrainData.GetLength(0) + " Index: " + index + " Coord: " + valueCoord);
+        }
+        
     }
 
     public void AddToTerrainValue(Vector3Int valueCoord, float value)

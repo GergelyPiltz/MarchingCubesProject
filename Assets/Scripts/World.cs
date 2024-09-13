@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class World : MonoBehaviour
@@ -179,14 +178,14 @@ public class World : MonoBehaviour
         }
             
 
-        foreach (Vector2Int v in outerRing)
+        foreach (Vector2Int offset in outerRing)
         {
-            if (renderedChunks[v.x, 0, v.y] != null)
+            if (renderedChunks[offset.x, 0, offset.y] != null)
             {
                 for (int y = 0; y < verticalChunks; y++)
                 {
-                    ReturnToPool(renderedChunks[v.x, y, v.y]);
-                    renderedChunks[v.x, y, v.y] = null;
+                    ReturnToPool(renderedChunks[offset.x, y, offset.y]);
+                    renderedChunks[offset.x, y, offset.y] = null;
                 }
             }
         }
@@ -325,39 +324,55 @@ public class World : MonoBehaviour
 
     public void ModifyBlock(Vector3 pos, bool place)
     {
+        
         Vector3Int chunkPos = Vector3FloorToNearestMultipleOf(pos, CubicChunk.cubesPerAxis);
+        Debug.Log("NearestMultipleOf result: " + chunkPos);
         Vector3Int chunkIndex = GetIndexOfChunk(chunkPos);
 
         Vector3Int coordInChunk = Vector3Int.FloorToInt(pos) - chunkPos;
+
+        for (int i = 0; i < 3; i++)
+            if (coordInChunk[i] < 0)
+                coordInChunk[i] = CubicChunk.cubesPerAxis - Mathf.Abs(coordInChunk[i]);
+
+        Debug.Log("Pos: " + pos + " chunkPos: " + chunkPos + " position in chunk: " + coordInChunk);
+
         Vector3Int[] corners = new Vector3Int[8];
         for (int i = 0; i < 8; i++)
             corners[i] = coordInChunk + Tables.CornerTable[i];
 
-        List<Vector3Int[]> allVariations = CreateVariationsWithOffset(corners[0]);
-        for (int i = 1; i < 8; i++)
-            allVariations.Concat(CreateVariationsWithOffset(corners[i]));
-
-        CubicChunk c;
-        foreach (Vector3Int[] v in allVariations)
+        
+        for (int i = 0; i < 8; i++)
         {
-            Vector3Int indexWithOffset = chunkIndex + v[1];
-            if ((c = renderedChunks[indexWithOffset.x, indexWithOffset.y, indexWithOffset.z]) != null)
+            List<Vector3Int[]> variations = CreateVariationsWithOffset(corners[i]);
+
+            CubicChunk c = null;
+            foreach (Vector3Int[] v in variations)
             {
-                Debug.Log(v[0] + " - " + v[1]);
-                if (place)
+                Vector3Int indexWithOffset = chunkIndex + v[1];
+
+                c = renderedChunks[indexWithOffset.x, indexWithOffset.y, indexWithOffset.z];
+                if (c != null)
                 {
-                    c.OverwriteTerrainValue(v[0], 1);
-                    c.RecalculateMesh();
+                    Debug.Log(v[0] + " - " + v[1]);
+                    if (place)
+                    {
+                        c.OverwriteTerrainValue(v[0], -1);
+                        c.RecalculateMesh();
+                    }
+                    else
+                    {
+                        c.OverwriteTerrainValue(v[0], 1);
+                        c.RecalculateMesh();
+                    }
                 }
                 else
-                {
-                    c.OverwriteTerrainValue(v[0], -1);
-                    c.RecalculateMesh();
-                }
+                    Debug.Log("No chunk found at " + chunkPos + "with index " + chunkIndex);
             }
-            else
-                Debug.Log("No chunk found at " + chunkPos + "with index " + chunkIndex);
         }
+
+        
+
     }
 
     public Vector2 ToVector2FromXZ(Vector3 v)
@@ -377,11 +392,31 @@ public class World : MonoBehaviour
     /// <param name="vector"> Vector3Int to be floored </param>
     /// <param name="multipleOf"> [component] - [component] % [multipleOf]</param>
     /// <returns></returns>
-    private Vector3Int Vector3FloorToNearestMultipleOf(Vector3Int vector, int multipleOf)
+    Vector3Int Vector3FloorToNearestMultipleOf(Vector3Int vector, int multipleOf)
     {
-        int x = vector.x - vector.x % multipleOf;
-        int y = vector.y - vector.y % multipleOf;
-        int z = vector.z - vector.z % multipleOf;
+        int x, y, z;
+
+        if (vector.x > 0)
+            x = vector.x - vector.x % multipleOf;
+        else if (vector.x < 0)
+            x = vector.x - (multipleOf + vector.x % multipleOf);
+        else
+            x = 0;
+
+        if (vector.y > 0)
+            y = vector.y - vector.y % multipleOf;
+        else if (vector.y < 0)
+            y = vector.y - (multipleOf + vector.y % multipleOf);
+        else
+            y = 0;
+
+        if (vector.z > 0)
+            z = vector.z - vector.z % multipleOf;
+        else if (vector.z < 0)
+            z = vector.z - (multipleOf + vector.z % multipleOf);
+        else
+            z = 0;
+
         return new Vector3Int(x, y, z);
     }
 
@@ -406,8 +441,22 @@ public class World : MonoBehaviour
     /// <returns></returns>
     private Vector2Int Vector2FloorToNearestMultipleOf(Vector2Int vector, int multipleOf)
     {
-        int x = vector.x - vector.x % multipleOf;
-        int y = vector.y - vector.y % multipleOf;
+        int x, y;
+
+        if (vector.x > 0)
+            x = vector.x - vector.x % multipleOf;
+        else if (vector.x < 0)
+            x = vector.x - (multipleOf + vector.x % multipleOf);
+        else
+            x = 0;
+
+        if (vector.y > 0)
+            y = vector.y - vector.y % multipleOf;
+        else if (vector.y < 0)
+            y = vector.y - (multipleOf + vector.y % multipleOf);
+        else
+            y = 0;
+
         return new Vector2Int(x, y);
     }
 
