@@ -274,6 +274,51 @@ Texture2D:
     offset: 0
     size: 0
     path: 
+--- !u!1 &221385887
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 221385889}
+  - component: {fileID: 221385888}
+  m_Layer: 0
+  m_Name: Tests
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &221385888
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 221385887}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b86e9de9ff8d91648b90d435295cafae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  player: {fileID: 1095466144}
+--- !u!4 &221385889
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 221385887}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -216.79123, y: 53.54299, z: -17.927803}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 12
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &276782329
 GameObject:
   m_ObjectHideFlags: 0
@@ -565,15 +610,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b19970727c35d948abfb378e965ed20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  spawnDistance: 20
-  startFrequency2D: 0.002
-  frequencyModifier2D: 2
-  amplitudeModifier2D: 0.5
-  octaves2D: 3
-  startFrequency3D: 0.04
-  frequencyModifier3D: 2
-  amplitudeModifier3D: 0.5
-  octaves3D: 3
+  spawnDistance: 17
   terrainProfile: 1
 --- !u!4 &427167710
 Transform:

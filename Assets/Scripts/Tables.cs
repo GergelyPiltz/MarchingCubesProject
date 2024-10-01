@@ -45,10 +45,7 @@ public static class Tables
             
         */
     };
-// Sources:
-// https://github.com/b3agz/how-to-make-7-days-to-die-in-unity/blob/master/01-marching-cubes/Marching.cs
-// https://github.com/SebLague/Marching-Cubes/blob/master/Assets/Scripts/Compute/Includes/MarchTables.compute
-// https://paulbourke.net/geometry/polygonise/
+
 
     public static readonly Vector3Int[] CornerTable = new Vector3Int[] {
 
@@ -62,6 +59,11 @@ public static class Tables
         new (0, 1, 1)
 
     };
+
+    // Sources:
+    // https://github.com/b3agz/how-to-make-7-days-to-die-in-unity/blob/master/01-marching-cubes/Marching.cs
+    // https://github.com/SebLague/Marching-Cubes/blob/master/Assets/Scripts/Compute/Includes/MarchTables.compute
+    // https://paulbourke.net/geometry/polygonise/
 
     public static readonly int[,] EdgeTable = new int[,] {
 
@@ -92,6 +94,11 @@ public static class Tables
         //{ new Vector3(0.0f, 1.0f, 0.0f), new Vector3(0.0f, 1.0f, 1.0f) }
 
     };
+
+    // Sources:
+    // https://github.com/b3agz/how-to-make-7-days-to-die-in-unity/blob/master/01-marching-cubes/Marching.cs
+    // https://github.com/SebLague/Marching-Cubes/blob/master/Assets/Scripts/Compute/Includes/MarchTables.compute
+    // https://paulbourke.net/geometry/polygonise/
 
     public static readonly int[,] TriangleTable = new int[,] {
 
@@ -353,5 +360,10 @@ public static class Tables
         {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
 
     };
+
+    // Sources:
+    // https://github.com/b3agz/how-to-make-7-days-to-die-in-unity/blob/master/01-marching-cubes/Marching.cs
+    // https://github.com/SebLague/Marching-Cubes/blob/master/Assets/Scripts/Compute/Includes/MarchTables.compute
+    // https://paulbourke.net/geometry/polygonise/
 
 }

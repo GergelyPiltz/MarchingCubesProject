@@ -57,7 +57,7 @@ public class RoughTerrain : MonoBehaviour
     {
         //CreateTerrainData();
         //terrainData = HelperFunctions.GenerateSphereArray(size + 1, radius);
-        terrainData = HelperFunctions.GenerateCurvedArray(size + 1, curveX, curveZ);
+        //terrainData = HelperFunctions.GenerateCurvedArray(size + 1, curveX, curveZ);
         CreateMeshData();
         BuildMesh();
     }

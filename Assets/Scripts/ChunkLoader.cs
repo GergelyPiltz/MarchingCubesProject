@@ -1,15 +1,11 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class World : MonoBehaviour
+public class ChunkLoader : MonoBehaviour
 {
-    [SerializeField] private int spawnDistance;
-
-    //-------------------
-    //private int spawnDistance;
+    private int spawnDistance;
     private int despawnDistance;
     private int outerDiameter;
     private Vector2Int center2;
@@ -30,31 +26,10 @@ public class World : MonoBehaviour
     private ChunkPool chunkPool;
     private Transform world;
     private Transform player;
-    //-------------------
 
-    public const int verticalChunks = 16;
-    public const int worldHeight = CubicChunk.cubesPerAxis * verticalChunks;
-
-    [Header("Terrain Profile")]
-    [SerializeField] CubicChunk.TerrainProfile terrainProfile;
-
-    private bool dynamicRender = true;
-
-    void Start()
+    public ChunkLoader(Transform world, Transform player, int spawnDistance)
     {
-        CubicChunk.SetTerrainProfile(terrainProfile);
-
-        try
-        {
-            player = GameObject.Find("Player").transform;
-        }
-        catch (NullReferenceException)
-        {
-            dynamicRender = false;
-        }
-
-        //-------------------------
-        world = transform;
+        this.spawnDistance = spawnDistance;
         despawnDistance = spawnDistance + 6;
         outerDiameter = despawnDistance * 2 + 1;
         center2 = new(despawnDistance, despawnDistance);
@@ -67,10 +42,14 @@ public class World : MonoBehaviour
         circle = CalculateCircle(spawnDistance, center2, outerDiameter);
 
         chunkPool = new ChunkPool();
-        //-------------------------
 
+        this.player = player;
+        this.world = world;
+    }
 
-        //-------------------------
+    void Start()
+    {
+
         foreach (Vector2Int offset in circle)
             for (int y = 0; y < World.verticalChunks; y++)
             {
@@ -81,37 +60,10 @@ public class World : MonoBehaviour
                 cubicChunk.Move(position);
                 chunksToBuild.Add(cubicChunk);
             }
-        //-------------------------
-
-        StartCoroutine(PlacePlayer());
     }
-
-    private IEnumerator PlacePlayer()
-    {
-        yield return new WaitForSeconds(1);
-        RaycastHit hit;
-        while (!Physics.Raycast(new Vector3(0, worldHeight, 0), Vector3.down, out hit))
-            yield return new WaitForSeconds(1);
-        player.position = hit.point + new Vector3(0, 2, 0);
-    }
-
-    private float chunkManagementTimeTotal = 0f;
-    private int avgCounter = 0;
-    private int cycles = 0;
 
     void Update()
     {
-        transform.name = "World (" + transform.childCount + ")";
-
-        //Debug.Log("Runtimes:" +
-        //    " Shader Max: " + CubicChunk.maxComputeTime.ToString("0.000000") + 
-        //    " Shader Avg: " + CubicChunk.avgComputeTime.ToString("0.000000") +
-        //    " Build Max: " + CubicChunk.maxBuildTime.ToString("0.000000") +
-        //    " Build Avg: " + CubicChunk.avgBuildTime.ToString("0.000000")
-        //    );
-
-        if (!dynamicRender) return;
-
         // Build the chunks
         int counter = 0;
         foreach (var c in chunksToBuild)
@@ -129,13 +81,11 @@ public class World : MonoBehaviour
         // Check if the player moved chunks
         playerChunk = HelperFunctions.Vector2FloorToNearestMultipleOf
             (
-            HelperFunctions.ToVector2FromXZ(player.position),
+            HelperFunctions.ToVector2FromXZ(player.position), 
             CubicChunk.cubesPerAxis
             );
-
+        
         if (playerChunk == oldPos) return;
-
-        float chunkManagementTime = Time.realtimeSinceStartup;
 
         if (playerChunk.x > oldPos.x)
             for (int x = 0; x < outerDiameter - 1; x++)
@@ -177,6 +127,7 @@ public class World : MonoBehaviour
             }
         }
 
+
         foreach (Vector2Int offset in outerRing)
         {
             if (renderedChunks[offset.x, 0, offset.y] != null)
@@ -186,118 +137,6 @@ public class World : MonoBehaviour
                     chunkPool.ReturnToPool(renderedChunks[offset.x, y, offset.y]);
                     renderedChunks[offset.x, y, offset.y] = null;
                 }
-            }
-        }
-
-        chunkManagementTime = Time.realtimeSinceStartup - chunkManagementTime;
-
-        cycles++;
-        if (cycles > despawnDistance + 2)
-        {
-            avgCounter++;
-            chunkManagementTimeTotal += chunkManagementTime;
-            Debug.Log("Chunk Management Time: " + chunkManagementTimeTotal / avgCounter);
-        }
-
-
-    }
-
-    void OnApplicationQuit()
-    {
-        CubicChunk.ReleaseBuffers();
-    }
-
-    private List<Vector3Int[]> CreateVariationsWithOffset(Vector3Int pos)
-    {
-        List<Vector3Int[]> variations = new (){ new []{ pos, new(0, 0, 0) } };
-
-        for (int i = 0; i < 3; i++)
-        {
-            if (pos[i] == 0)
-            {
-                int count = variations.Count;
-                for (int j = 0; j < count; j++)
-                {
-                    Vector3Int v = variations[j][0];
-                    v[i] = 16;
-                    Vector3Int o = variations[j][1];
-                    o[i] = -1;
-                    variations.Add(new[] { v, o });
-                }
-            }
-            else if (pos[i] == 16)
-            {
-                int count = variations.Count;
-                for (int j = 0; j < count; j++)
-                {
-                    Vector3Int v = variations[j][0];
-                    v[i] = 0;
-                    Vector3Int o = variations[j][1];
-                    o[i] = +1;
-                    variations.Add(new[] { v, o });
-                }
-            }
-        }
-
-        return variations;
-
-        //Vector3Int[] variations = new Vector3Int[8];
-
-        //for (int i = 0; i < 3; i++)
-        //    if (pos[i] == 0 || pos[i] == 16)
-        //        for (int j = 0; j < 8; j++)
-        //            variations[j][i] = 16 * Tables.CornerTable[j][i]; // CornerTable is technically all variations of a 3 component binary vector
-        //    else
-        //        for (int j = 0; j < 8; j++)
-        //            variations[j][i] = pos[i];
-
-        //return variations.Distinct();
-    }
-
-    public void ModifyBlock(Vector3 pos, bool place)
-    {
-        Vector3Int posInt = Vector3Int.FloorToInt(pos);
-        Vector3Int chunkPosition = HelperFunctions.Vector3FloorToNearestMultipleOf(posInt, CubicChunk.cubesPerAxis);
-        Vector3Int indexOfChunk = GetIndexOfChunkByChunkPosition(chunkPosition);
-        Vector3Int coordInChunk = posInt - chunkPosition;
-
-        for (int i = 0; i < 3; i++)
-            if (coordInChunk[i] < 0)
-                coordInChunk[i] = CubicChunk.cubesPerAxis - Mathf.Abs(coordInChunk[i]);
-
-        Debug.Log("Pos: " + pos + " ChunkPos: " + chunkPosition + " Position in chunk: " + coordInChunk);
-
-        Vector3Int[] corners = new Vector3Int[8];
-        for (int i = 0; i < 8; i++)
-            corners[i] = coordInChunk + Tables.CornerTable[i];
-
-        
-        for (int i = 0; i < 8; i++)
-        {
-            List<Vector3Int[]> variations = CreateVariationsWithOffset(corners[i]);
-
-            CubicChunk chunk = null;
-            foreach (Vector3Int[] v in variations)
-            {
-                Vector3Int indexWithOffset = indexOfChunk + v[1];
-
-                chunk = GetChunkByIndex(indexWithOffset);
-                if (chunk != null)
-                {
-                    Debug.Log(v[0] + " - " + v[1]);
-                    if (place)
-                    {
-                        chunk.OverwriteTerrainValue(v[0], -1);
-                        chunk.RecalculateMesh();
-                    }
-                    else
-                    {
-                        chunk.OverwriteTerrainValue(v[0], 1);
-                        chunk.RecalculateMesh();
-                    }
-                }
-                else
-                    Debug.Log("No chunk found at " + chunkPosition);
             }
         }
     }
@@ -337,26 +176,25 @@ public class World : MonoBehaviour
         return circle;
     }
 
-    private Vector3Int GetIndexOfChunkByChunkPosition(Vector3Int chunkPosition)
+    public Vector3Int GetIndexOfChunkByChunkPosition(Vector3Int chunkPosition)
     {
         return center3 - ((renderedChunks[center3.x, center3.y, center3.z].Position - chunkPosition) / CubicChunk.cubesPerAxis);
     }
 
-    private Vector3Int GetIndexOfChunkAtPosition(Vector3Int positionInWorld)
+    public Vector3Int GetIndexOfChunkAtPosition(Vector3Int positionInWorld)
     {
         Vector3Int chunkPosition = HelperFunctions.Vector3FloorToNearestMultipleOf(positionInWorld, CubicChunk.cubesPerAxis);
         return GetIndexOfChunkByChunkPosition(chunkPosition);
     }
 
-    private CubicChunk GetChunkAtPosition(Vector3Int positionInWorld)
+    public CubicChunk GetChunkAtPosition(Vector3Int positionInWorld)
     {
         Vector3Int indexOfChunk = GetIndexOfChunkAtPosition(positionInWorld);
         return renderedChunks[indexOfChunk.x, indexOfChunk.y, indexOfChunk.z];
     }
 
-    private CubicChunk GetChunkByIndex(Vector3Int index)
+    public CubicChunk GetChunkByIndex(Vector3Int index)
     {
         return renderedChunks[index.x, index.y, index.z];
     }
-
 }

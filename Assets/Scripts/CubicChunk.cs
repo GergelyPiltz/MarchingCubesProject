@@ -81,12 +81,11 @@ public class CubicChunk
             Debug.LogError("Chunk can't find scripts. Gameobject with scripts must be named \"ScriptResources\"");
     }
 
-    public CubicChunk(Transform parent)
+    public CubicChunk()
     {
         Position = new(0, 0, 0);
         chunkObject = new("Chunk (Uninitialized)");
         chunkTransform = chunkObject.transform;
-        chunkTransform.parent = parent;
         chunkTransform.position = Position;
 
         meshFilter = chunkObject.AddComponent<MeshFilter>();
@@ -97,7 +96,7 @@ public class CubicChunk
 
     #region Compute
 
-    struct Triangle
+    private struct Triangle
     {
         public Vector3 vertexA;
         public Vector3 vertexB;

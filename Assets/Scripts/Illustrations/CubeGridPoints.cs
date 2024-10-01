@@ -22,7 +22,7 @@ public class CubeGridPoints : MonoBehaviour
     {
 
         //terrainData = HelperFunctions.GenerateSphereArray(size + 1, radius);
-        terrainData = HelperFunctions.GenerateCurvedArray(size + 1, curveX, curveZ);
+        //terrainData = HelperFunctions.GenerateCurvedArray(size + 1, curveX, curveZ);
 
         blue = Resources.Load("Materials/DEV_Blue", typeof(Material)) as Material;
         green = Resources.Load("Materials/DEV_Green", typeof(Material)) as Material;

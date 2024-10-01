@@ -52,7 +52,7 @@ public class ScalarField : MonoBehaviour
 
 
         //terrainData = HelperFunctions.GenerateSphereArray(size + 1, radius);
-        terrainData = HelperFunctions.GenerateCurvedArray(size + 1, curveX, curveZ);
+        //terrainData = HelperFunctions.GenerateCurvedArray(size + 1, curveX, curveZ);
 
         DebugParent = gameObject;
         valueDisplay = new GameObject[size + 1, size + 1, size + 1];
