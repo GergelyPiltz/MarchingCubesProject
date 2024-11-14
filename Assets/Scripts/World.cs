@@ -359,4 +359,72 @@ public class World : MonoBehaviour
         return renderedChunks[index.x, index.y, index.z];
     }
 
+    int minChunks = 0;
+    int maxChunks = 0;
+    public bool WorldTest()
+    {
+        if (minChunks == 0)
+        {
+            for (int x = -spawnDistance; x < spawnDistance + 1; x++)
+                for (int y = -spawnDistance; y < spawnDistance + 1; y++)
+                {
+                    Vector2Int v = new (x, y);
+                    if (Vector2.Distance(Vector2.zero, v) < spawnDistance)
+                    {
+                        minChunks++;
+                    }
+                }
+            minChunks *= verticalChunks;
+        }
+
+        if (maxChunks == 0)
+        {
+            for (int x = -despawnDistance; x < despawnDistance + 1; x++)
+                for (int y = -despawnDistance; y < despawnDistance + 1; y++)
+                {
+                    Vector2Int v = new (x, y);
+                    if (Vector2.Distance(Vector2.zero, v) < despawnDistance)
+                    {
+                        maxChunks++;
+                    }
+                }
+            maxChunks *= verticalChunks;
+        }
+
+        
+        
+
+        Debug.Log("min " + minChunks + " max " + maxChunks);
+
+        int count = 0;
+        foreach (var chunk in renderedChunks)
+            if (chunk != null)
+                count++;
+
+
+        if (count < minChunks)
+        {
+            Debug.Log("Less than min chunks");
+            return false;
+        }
+
+        if (count > maxChunks)
+        {
+            Debug.Log("More than max chunks");
+            return false;
+        }
+
+        foreach (var chunk in renderedChunks)
+            if (chunk != null)
+                if (Vector2.Distance(HelperFunctions.ToVector2FromXZ(chunk.Position), playerChunk) > despawnDistance * CubicChunk.cubesPerAxis)
+                {
+                    Debug.Log("Distance error");
+                    return false;
+                }
+
+        return true;
+    }
+
+
+
 }

@@ -304,6 +304,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   player: {fileID: 1095466144}
+  delay: 2
+  world: {fileID: 427167710}
 --- !u!4 &221385889
 Transform:
   m_ObjectHideFlags: 0
