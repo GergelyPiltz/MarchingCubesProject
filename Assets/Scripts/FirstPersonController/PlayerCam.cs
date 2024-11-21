@@ -19,12 +19,12 @@ public class PlayerCam : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
-            Application.Quit();
+        //if (Input.GetKeyDown(KeyCode.Escape))
+        //    Application.Quit();
 
         //mouse inputs
-        float mouseX = Input.GetAxisRaw("Mouse X") /** Time.deltaTime*/ * sensX;
-        float mouseY = Input.GetAxisRaw("Mouse Y") /** Time.deltaTime*/ * sensY;
+        float mouseX = Input.GetAxisRaw("Mouse X") * Time.deltaTime * sensX;
+        float mouseY = Input.GetAxisRaw("Mouse Y") * Time.deltaTime * sensY;
 
         yRotation += mouseX;
 

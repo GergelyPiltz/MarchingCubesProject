@@ -2,11 +2,13 @@ using UnityEngine;
 
 public static class HelperFunctions
 {
+    // Converts a Vector3 to Vector2 from the X and Z components. Vector2.y = Vector3.z
     public static Vector2 ToVector2FromXZ(Vector3 v)
     {
         return new Vector2(v.x, v.z);
     }
 
+    // Converts a Vector3Int to Vector2Int from the X and Z components. Vector2Int.y = Vector3Int.z
     public static Vector2Int ToVector2FromXZ(Vector3Int v)
     {
         return new Vector2Int(v.x, v.z);

@@ -6,26 +6,6 @@ public class PlayerMovement : MonoBehaviour
     //public TMP_Text stateDisplay;  
     //public TMP_Text slopeDisplay;
 
-    //[Header("Grappling")]
-    //public Transform cam;
-    //public Transform gunTip;
-    //public LayerMask grappable;
-
-    //public float maxGrappleDistance;
-    //public float grappleDelayTime;
-    //public float overshootYAxis;
-
-    //private Vector3 grapplePoint;
-
-    //public float grapplingCooldown;
-    //private float grapplingCooldownTimer;
-
-    //public bool grappling;
-    //public bool activeGrapple;
-    //public bool enableSpeedLimiting;
-
-    //public LineRenderer lr;
-
     [Header("Movement")]
     private float moveSpeed;
     public float walkSpeed;
@@ -102,7 +82,7 @@ public class PlayerMovement : MonoBehaviour
         StateHandler();
 
         //apply drag
-        if (isGrounded/* && !activeGrapple*/)
+        if (isGrounded)
         {
             rb.drag = groundDrag;
         }
@@ -111,20 +91,7 @@ public class PlayerMovement : MonoBehaviour
             rb.drag = 0;
         }
 
-        //if (grapplingCooldownTimer > 0)
-        //{
-        //    grapplingCooldownTimer -= Time.deltaTime;
-        //}
-
     }
-
-    //private void LateUpdate()
-    //{
-    //    if (grappling)
-    //    {
-    //        lr.SetPosition(0, gunTip.position);
-    //    }
-    //}
 
     private void PlayerInput()
     {
@@ -150,12 +117,6 @@ public class PlayerMovement : MonoBehaviour
         {
             transform.localScale = new Vector3(transform.localScale.x, startYScale, transform.localScale.z);
         }
-
-        //grappling
-        //if (Input.GetKeyDown(grappleKey))
-        //{
-        //    StartGrapple();
-        //}
 
     }
 
@@ -189,7 +150,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void MovePlayer()
     {
-        //if (activeGrapple) return;
         //movement direction
         moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
 
@@ -224,7 +184,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void LimitSpeed()
     {
-        //if (activeGrapple) return;
 
         if (OnSlope() && !exitingSlope) //limit speed on slope
         {
@@ -274,94 +233,5 @@ public class PlayerMovement : MonoBehaviour
     {
         return Vector3.ProjectOnPlane(moveDirection, slopeHit.normal).normalized;
     }
-
-    //private void StartGrapple()
-    //{
-    //    if (grapplingCooldownTimer > 0) return;
-
-    //    grappling = true;
-
-    //    RaycastHit grappleHit;
-    //    if (Physics.Raycast(cam.position, cam.forward, out grappleHit, maxGrappleDistance, grappable))
-    //    {
-    //        grapplePoint = grappleHit.point;
-
-    //        Invoke(nameof(ExecuteGrapple), grappleDelayTime);
-    //    }
-    //    else
-    //    {
-    //        grapplePoint = cam.position + cam.forward * maxGrappleDistance;
-    //        Invoke(nameof(StopGrapple), grappleDelayTime);
-    //    }
-
-    //    lr.enabled = true;
-    //    lr.SetPosition(1, grapplePoint);
-    //}
-
-    //private void ExecuteGrapple()
-    //{
-    //    Vector3 lowestPoint = new Vector3(transform.position.x, transform.position.y - 1f, transform.position.z);
-    //    float grapplePointRealitveYPos = grapplePoint.y - lowestPoint.y;
-    //    float highestPointOnArc = grapplePointRealitveYPos + overshootYAxis;
-
-    //    if (grapplePointRealitveYPos < 0)
-    //    {
-    //        highestPointOnArc = overshootYAxis;
-    //    }
-
-    //    JumpToPosition(grapplePoint, highestPointOnArc);
-
-    //    Invoke(nameof(StopGrapple), 1f);
-    //}
-
-    //private void StopGrapple()
-    //{
-    //    grappling = false;
-    //    activeGrapple = false;
-    //    grapplingCooldownTimer = grapplingCooldown;
-
-    //    lr.enabled = false;
-    //}
-
-
-
-    //https://tenor.com/hu/view/calculation-math-hangover-allen-zach-galifianakis-gif-6219070
-    //public Vector3 CalculateJumpVelocity(Vector3 startPoint, Vector3 endPoint, float trajectoryHeight)
-    //{
-    //    float gravity = Physics.gravity.y;
-    //    float displacementY = endPoint.y - startPoint.y;
-    //    Vector3 displacementXZ = new Vector3(endPoint.x - startPoint.x, 0f, endPoint.z - startPoint.z);
-
-    //    Vector3 velocityY = Vector3.up * Mathf.Sqrt(-2 * gravity * trajectoryHeight);
-    //    Vector3 velocityXZ = displacementXZ / (Mathf.Sqrt(-2 * trajectoryHeight / gravity)
-    //        + Mathf.Sqrt(2 * (displacementY - trajectoryHeight) / gravity));
-
-    //    return velocityXZ + velocityY;
-    //}
-
-    //private Vector3 velocityToSet; ///////////////
-    //public void JumpToPosition(Vector3 targetPosition, float trajectoryHeight)
-    //{
-    //    activeGrapple = true;
-
-    //    velocityToSet = CalculateJumpVelocity(transform.position, targetPosition, trajectoryHeight);
-    //    Invoke(nameof(SetVelocity), 0.1f);
-    //}
-
-    //private void OnCollisionEnter(Collision collision)
-    //{
-    //    if (!enableSpeedLimiting)
-    //    {
-    //        enableSpeedLimiting = true;
-    //    }
-    //}
-
-    //private void SetVelocity()
-    //{
-    //    enableSpeedLimiting = false;
-    //    rb.velocity = velocityToSet;
-    //}
-
-
 
 }

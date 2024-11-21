@@ -6,11 +6,10 @@ using UnityEngine;
 
 public class World : MonoBehaviour
 {
-    [SerializeField] private int spawnDistance;
+    [SerializeField] public int spawnDistance; // Distance at which chunks will appear
 
     //-------------------
-    //private int spawnDistance;
-    private int despawnDistance;
+    private int despawnDistance; // Distance at which chunks will disappear
     private int outerDiameter;
     private Vector2Int center2;
     private Vector3Int center3;
@@ -19,30 +18,42 @@ public class World : MonoBehaviour
     private List<Vector2Int> outerRing;
     private List<Vector2Int> circle;
 
-    private CubicChunk[,,] renderedChunks;
+    private CubicChunk[,,] renderedChunks; // List of currently rendered chunks
 
-    private List<CubicChunk> chunksToBuild = new();
-    private List<CubicChunk> finishedBuild = new();
-    private readonly int buildsPerFrame = 10;
-    private Vector2Int oldPos = new(0, 0);
-    private Vector2Int playerChunk;
+    private List<CubicChunk> chunksToBuild = new(); // List of chunk waiting to be built. Not all is processed at once to not tank the FPS
+    private List<CubicChunk> finishedBuild = new(); // Chunks that have finished building and waiting to be inserted into renderedChunks
+    private readonly int buildsPerFrame = 10; // Amount of chunk build per frame
+    private Vector2Int oldPos = new(0, 0); // Players previous position
+    private Vector2Int playerChunk; // Players currrent chunk
 
     private ChunkPool chunkPool;
     private Transform world;
     private Transform player;
     //-------------------
 
-    public const int verticalChunks = 16;
-    public const int worldHeight = CubicChunk.cubesPerAxis * verticalChunks;
+    public const int verticalChunks = 16; // Wolrd height in chunks
+    public const int worldHeight = CubicChunk.cubesPerAxis * verticalChunks; // World height in blocks
 
     [Header("Terrain Profile")]
-    [SerializeField] CubicChunk.TerrainProfile terrainProfile;
+    [SerializeField] CubicChunk.TerrainProfile terrainProfile; // Currently chosen Terrain profile
+    [Header("CPU/GPU")]
+    [SerializeField] private bool enableMarchingOnCPU = true;
 
-    private bool dynamicRender = true;
+    private bool dynamicRender = true; // Dynamic render follows the position of the player if a player is available
+
+    Settings settings; // Setting carried over from the main menu
 
     void Start()
     {
+
+        settings = GameObject.Find("Settings").GetComponent<Settings>();
+
+        spawnDistance = settings.renderDistance;
+        terrainProfile = settings.TerrainProfile;
+        enableMarchingOnCPU = settings.enableMarchingOnGPU;
+
         CubicChunk.SetTerrainProfile(terrainProfile);
+        CubicChunk.EnableMarchingOnGPU(enableMarchingOnCPU);
 
         try
         {
@@ -86,6 +97,7 @@ public class World : MonoBehaviour
         StartCoroutine(PlacePlayer());
     }
 
+    // Places down the player after a short delay
     private IEnumerator PlacePlayer()
     {
         yield return new WaitForSeconds(1);
@@ -358,73 +370,5 @@ public class World : MonoBehaviour
     {
         return renderedChunks[index.x, index.y, index.z];
     }
-
-    int minChunks = 0;
-    int maxChunks = 0;
-    public bool WorldTest()
-    {
-        if (minChunks == 0)
-        {
-            for (int x = -spawnDistance; x < spawnDistance + 1; x++)
-                for (int y = -spawnDistance; y < spawnDistance + 1; y++)
-                {
-                    Vector2Int v = new (x, y);
-                    if (Vector2.Distance(Vector2.zero, v) < spawnDistance)
-                    {
-                        minChunks++;
-                    }
-                }
-            minChunks *= verticalChunks;
-        }
-
-        if (maxChunks == 0)
-        {
-            for (int x = -despawnDistance; x < despawnDistance + 1; x++)
-                for (int y = -despawnDistance; y < despawnDistance + 1; y++)
-                {
-                    Vector2Int v = new (x, y);
-                    if (Vector2.Distance(Vector2.zero, v) < despawnDistance)
-                    {
-                        maxChunks++;
-                    }
-                }
-            maxChunks *= verticalChunks;
-        }
-
-        
-        
-
-        Debug.Log("min " + minChunks + " max " + maxChunks);
-
-        int count = 0;
-        foreach (var chunk in renderedChunks)
-            if (chunk != null)
-                count++;
-
-
-        if (count < minChunks)
-        {
-            Debug.Log("Less than min chunks");
-            return false;
-        }
-
-        if (count > maxChunks)
-        {
-            Debug.Log("More than max chunks");
-            return false;
-        }
-
-        foreach (var chunk in renderedChunks)
-            if (chunk != null)
-                if (Vector2.Distance(HelperFunctions.ToVector2FromXZ(chunk.Position), playerChunk) > despawnDistance * CubicChunk.cubesPerAxis)
-                {
-                    Debug.Log("Distance error");
-                    return false;
-                }
-
-        return true;
-    }
-
-
 
 }

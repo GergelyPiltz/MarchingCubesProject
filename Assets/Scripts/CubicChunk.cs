@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.UIElements;
+using static UnityEngine.UIElements.UxmlAttributeDescription;
 using Random = UnityEngine.Random;
 
 public class CubicChunk
@@ -16,9 +18,9 @@ public class CubicChunk
     public static float totalBuildTime = 0f;
     public static int totalBuilds = 0;
 
-    public Vector3Int Position { get; private set; }
-    public readonly GameObject chunkObject;
-    public readonly Transform chunkTransform;
+    public Vector3Int Position { get; private set; } //! Position of the chunk
+    public readonly GameObject chunkObject; //! GameObject of the chunk
+    public readonly Transform chunkTransform; //! Transform of the GameObject of the chunk
 
     private readonly MeshFilter meshFilter;
     private readonly MeshCollider meshCollider;
@@ -27,40 +29,46 @@ public class CubicChunk
     private List<Vector3> vertices = new();
     private List<int> triangles = new();
 
-    public const int cubesPerAxis = 16; // CAREFUL!!!
-    public const int valuesPerAxis = cubesPerAxis + 1;
-    public const int totalValues = valuesPerAxis * valuesPerAxis * valuesPerAxis;
-    //There are hardcoded (only way) values in compute shaders. 
-    private const int marchingNumThreads = cubesPerAxis / 4; // Divided by what's in the compute shader
-    private const int noiseNumThreads = valuesPerAxis / 1; // Divided by what's in the compute shader
+    private static bool isMarchingOnGPU = true; // Enables the use of compute shaders
 
-    //private const float terrainHeight = 0f;
+    //GPU
+    public const int cubesPerAxis = 16; //! The amount of cubes on an axis. Don't change!
+    public const int valuesPerAxis = cubesPerAxis + 1; //! The amount of values on an axis
+    public const int totalValues = valuesPerAxis * valuesPerAxis * valuesPerAxis; //! The total values present
+    // There are hardcoded (only way) values in compute shaders. 
+    private const int marchingNumThreads = cubesPerAxis / 4; // The amount of threads the compute shader will use per dimension for the Marching Cubes algorithm. Calculated by dividing cubesPerAxis with the hardcoded value in the computeshader.
+    private const int noiseNumThreads = valuesPerAxis / 1; // The amount of threads the compute shader will use per dimension for the Noise generation algorithm. (valuesPerAxis is 17 which is a prime number)
 
-    private static bool smoothTerrain = false;
-    //private static bool meshSharedVertices = false;
-    //private static bool cubeSharedVertices = false;
-    //int LOD = 1;
+    //CPU
+    private const float terrainHeight = 0f; // Values higher then this are above the terrain, lower than this are below
 
-    private float[] terrainData = new float[totalValues];
-    //private ushort[,,,] vertexIndexArray; // By this being ushort we save a whopping 96 KiBs per chunk. 
+    private static bool smoothTerrain = false; // Enables interpolation between whole coordinates based on values
+    private static bool meshSharedVertices = false; // Enables optimization by sharing vertices between cubes
+    private static bool cubeSharedVertices = false; // Enables optimization by sharint vertices within a single cube
+    
+    private float[] terrainData = new float[totalValues]; // The values representing the shape of the terrain
+    private ushort[,,,] vertexIndexArray; // By this being ushort we save a whopping 96 KiBs per chunk.
 
-    private static readonly Assets assets;
     //private static readonly ScriptResources scriptResources;
 
+    private static readonly Settings settings;
+
+    // Static constructor. Sets the compute shader scripts and compute buffers for all instances.
     static CubicChunk()
     {
-        if (!GameObject.Find("Assets").TryGetComponent(out assets))
-            Debug.LogError("Chunk can't find assets. Gameobject with assets must be named \"Assets\"");
+        //if (!GameObject.Find("Assets").TryGetComponent(out assets))
+        //    Debug.LogError("Chunk can't find assets. Gameobject with assets must be named \"Assets\"");
 
         if (GameObject.Find("ScriptResources").TryGetComponent(out ScriptResources scriptResources))
         {
+
             marchingCompute = scriptResources.MarchingCompute;
             noiseCompute = scriptResources.NoiseCompute;
 
             // General values for Noise
             noiseCompute.SetInt("valuesPerAxis", valuesPerAxis); // Constant
             noiseCompute.SetInt("worldHeight", World.worldHeight); // Constant
-                                                                   // Noise parameters
+            // Noise parameters
             noiseCompute.SetFloat("startFrequency", 0.0005f);
             noiseCompute.SetFloat("frequencyModifier", 10f);
             noiseCompute.SetFloat("amplitudeModifier", 0.1f);
@@ -73,7 +81,7 @@ public class CubicChunk
             // General values for Marching Cubes
             marchingCompute.SetBool("smoothTerrain", smoothTerrain); // Can change
             marchingCompute.SetInt("valuesPerAxis", valuesPerAxis); // Constant
-                                                                    // Marching buffers
+            // Marching buffers
             marchingCompute.SetBuffer(0, "terrainDataBuffer", terrainDataBuffer);
             marchingCompute.SetBuffer(0, "triangleBuffer", triangleBuffer);
         }
@@ -83,6 +91,7 @@ public class CubicChunk
 
     public CubicChunk()
     {
+        
         Position = new(0, 0, 0);
         chunkObject = new("Chunk (Uninitialized)");
         chunkTransform = chunkObject.transform;
@@ -96,6 +105,9 @@ public class CubicChunk
 
     #region Compute
 
+    /// <summary>
+    /// The compute shader returns the mesh by individual triangles.
+    /// </summary>
     private struct Triangle
     {
         public Vector3 vertexA;
@@ -103,14 +115,18 @@ public class CubicChunk
         public Vector3 vertexC;
     }
 
-    private static readonly ComputeShader marchingCompute;
-    private static readonly ComputeShader noiseCompute;
+    private static readonly ComputeShader marchingCompute; // The script for the Marching Cubes compute shader
+    private static readonly ComputeShader noiseCompute; // The script for the Perlin Noise compute shader 
 
     private static readonly ComputeBuffer noise2DBuffer = new(valuesPerAxis * valuesPerAxis, sizeof(float));
     private static readonly ComputeBuffer terrainDataBuffer = new(totalValues, sizeof(float));
     private static readonly ComputeBuffer triangleBuffer = new(totalValues * 5, sizeof(float) * 3 * 3, ComputeBufferType.Append);
     private static readonly ComputeBuffer triangleCountBuffer = new(1, sizeof(int), ComputeBufferType.Raw);
     private int[] triangleCountArray = new int[1];
+
+    /// <summary>
+    /// Computes the noise using a compute shader
+    /// </summary>
     private void ComputeNoise()
     {
         noiseCompute.SetInt("posX", Position.x);
@@ -123,6 +139,9 @@ public class CubicChunk
         terrainDataBuffer.GetData(terrainData);
     }
 
+    /// <summary>
+    /// Runs the Marching Cubes algorithm using a compute shader
+    /// </summary>
     private void ComputeMesh()
     {
         triangleBuffer.SetCounterValue(0);
@@ -148,6 +167,9 @@ public class CubicChunk
         }
     }
 
+    /// <summary>
+    /// Releases the buffers to prevent memory leaks. Buffers are static. 
+    /// </summary>
     public static void ReleaseBuffers()
     {
         noise2DBuffer.Release();
@@ -158,6 +180,10 @@ public class CubicChunk
 
     #endregion
 
+    /// <summary>
+    /// Manipulates the terrain in a block
+    /// </summary>
+    /// <param name="value">Sets all corners to this value</param>
     public void OverwriteBlock(Vector3Int block, float value)
     {
         for (int i = 0; i < 8; i++)
@@ -170,6 +196,9 @@ public class CubicChunk
         }
     }
 
+    /// <summary>
+    /// Manipulates the terrain at a single point
+    /// </summary>
     public void OverwriteTerrainValue(Vector3Int valueCoord, float value)
     {
 
@@ -195,11 +224,17 @@ public class CubicChunk
         terrainData[IndexFromCoord(valueCoord)] = value;
     }
 
+    /// <summary>
+    /// Converts a 3 dimensional coordinate to a 1 dimensional index
+    /// </summary>
     private int IndexFromCoord(Vector3Int coord)
     {
         return coord.x * valuesPerAxis * valuesPerAxis + coord.y * valuesPerAxis + coord.z;
     }
 
+    /// <summary>
+    /// Moves the chunk to a new position and disables it
+    /// </summary>
     public void Move(Vector3Int position)
     {
         chunkObject.SetActive(false);
@@ -208,16 +243,23 @@ public class CubicChunk
         chunkTransform.position = Position; 
     }
 
+    /// <summary>
+    /// Builds the chunk from start to finish 
+    /// </summary>
     public void Build()
     {
         float time = Time.realtimeSinceStartup;
 
         ComputeNoise();
-        ComputeMesh();
+        if (isMarchingOnGPU)
+        {
+            ComputeMesh();
+        }
+        else
+            CreateMeshData();
         ApplyMesh();
+
         chunkObject.SetActive(true);
-        //DestroyAllChildren();
-        //PlaceVegetation();
 
         time = Time.realtimeSinceStartup - time;
         if (time > maxBuildTime) maxBuildTime = time;
@@ -226,6 +268,9 @@ public class CubicChunk
         avgBuildTime = totalBuildTime / totalBuilds;
     }
 
+    /// <summary>
+    /// Recalculates the mesh from the data in terrainData
+    /// </summary>
     public void RecalculateMesh()
     {
         terrainDataBuffer.SetData(terrainData);
@@ -235,7 +280,7 @@ public class CubicChunk
 
     /*
 
-    #region Creating terrain data from noise UNUSED
+    #region Creating terrain data from noise, NOT USED, IMPLEMENTED IN COMPUTE SHADER  
 
     private void CreateTerrainData(NoiseMap2D noise2D)
     {
@@ -279,8 +324,13 @@ public class CubicChunk
 
     #endregion
 
-    #region Marching Cubes UNUSED
+    */
 
+    #region Marching Cubes
+
+    /// <summary>
+    /// Creates the mesh data using the Marching Cubes algorith on the CPU
+    /// </summary>
     private void CreateMeshData()
     {
         vertices.Clear();
@@ -361,6 +411,9 @@ public class CubicChunk
                 }
     }
 
+    /// <summary>
+    /// Calculates a single vertex
+    /// </summary>
     private int CalculateVertex(Vector3Int position, int edgeIndex, float[] cube)
     {
         Vector3 vert1 = Tables.CornerTable[Tables.EdgeTable[edgeIndex, 0]];
@@ -393,6 +446,10 @@ public class CubicChunk
         return (vertexCount - 1);
     }
 
+    /// <summary>
+    /// Calculates the configuration of a single cube
+    /// </summary>
+    /// <param name="cube">Float[] of the corners of the cube.</param>
     private int GetCubeCongif(float[] cube)
     {
         int configIndex = 0;
@@ -402,13 +459,21 @@ public class CubicChunk
         return configIndex;
     }
 
+    /// <summary>
+    /// Samples the terrain at the given position.
+    /// </summary>
+    /// <param name="point">Point where it samples.</param>
     private float SampleTerrain(Vector3Int point)
     {
         return terrainData[point.x * valuesPerAxis * valuesPerAxis + point.y * valuesPerAxis + point.z];
     }
 
+    /// <summary>
+    /// (Re)Initializes the vertexIndexArray and sets all values to ushort.MaxValue.
+    /// </summary>
     private void ResetVertexIndexArray()
     {
+        vertexIndexArray = new ushort[cubesPerAxis, cubesPerAxis, cubesPerAxis, 12];
         for (int i = 0; i < cubesPerAxis; i++)
             for (int j = 0; j < cubesPerAxis; j++)
                 for (int k = 0; k < cubesPerAxis; k++)
@@ -418,8 +483,9 @@ public class CubicChunk
 
     #endregion
 
-    */
-
+    /// <summary>
+    /// Applies the calculated mesh to the gameObjects meshFilter and meshCollider.
+    /// </summary>
     private void ApplyMesh()
     {
         Mesh mesh = new()
@@ -433,41 +499,9 @@ public class CubicChunk
         meshCollider.sharedMesh = mesh;
     }
 
-    private void DestroyAllChildren()
-    {
-        foreach (Transform child in chunkTransform)
-            GameObject.Destroy(child.gameObject);
-    }
-
-    private readonly int numberOfObjectsToTryMax = 5;
-    private readonly float scaleMultiplier = 5f;
-    private readonly float scaleRange = 0.5f; // 0.2f = +/- 20%
-    private void PlaceVegetation()
-    {
-        if (vertices.Count == 0) return;
-
-        int tries = Random.Range(0, numberOfObjectsToTryMax);
-
-        for (byte i = 0; i < tries; i++)
-        {
-            Vector3 origin = new(Random.value * cubesPerAxis + Position.x, World.worldHeight, Random.value * cubesPerAxis + Position.z);
-            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit))
-                if (Vector3.Angle(Vector3.up, hit.normal) < 50f)
-                {
-                    int x = Random.Range(0, assets.vegetation.Length - 1);
-                    Quaternion rotation = Quaternion.Euler( new (0, Random.Range(0, 360), 0));
-                    Vector3 pos = hit.point - new Vector3(0, 0.5f, 0);
-
-                    GameObject veg = GameObject.Instantiate(assets.vegetation[x], pos, rotation, chunkTransform);
-
-                    float scale = Random.Range(scaleMultiplier - scaleMultiplier * scaleRange, scaleMultiplier + scaleMultiplier * scaleRange);
-                    Vector3 scaleVect = new(scale, scale, scale);
-
-                    veg.transform.localScale = scaleVect;
-                }
-        }
-    }
-
+    /// <summary>
+    /// Activates or disables the gameobject of the chunk
+    /// </summary>
     public void SetActive(bool b)
     {
         chunkObject.SetActive(b);
@@ -482,8 +516,8 @@ public class CubicChunk
     public static void SetTerainParameters(bool smoothTerrain, bool meshSharedVertices, bool cubeSharedVertices)
     {
         CubicChunk.smoothTerrain = smoothTerrain;
-        //CubicChunk.meshSharedVertices = meshSharedVertices;
-        //CubicChunk.cubeSharedVertices = cubeSharedVertices;
+        CubicChunk.meshSharedVertices = meshSharedVertices;
+        CubicChunk.cubeSharedVertices = cubeSharedVertices;
 
         marchingCompute.SetBool("smoothTerrain", smoothTerrain);
     }
@@ -492,13 +526,23 @@ public class CubicChunk
     /// <summary>
     /// Choose a terrainprofile between a blocky look and a smooth, more realistic look.
     /// </summary>
-    /// <param name="profile"></param>
+    /// <param name="profile">Smooth/Blocky</param>
     public static void SetTerrainProfile(TerrainProfile profile)
     {
         if (profile == TerrainProfile.Smooth)
             SetTerainParameters(true, true, true);
         else
             SetTerainParameters(false, false, false);
+        Debug.Log(profile.ToString());
+    }
+
+    /// <summary>
+    /// Enables the Marching Cubes algorithm to run on the GPU using compute shaders
+    /// </summary>
+    public static void EnableMarchingOnGPU(bool b)
+    {
+        isMarchingOnGPU = b;
+        Debug.Log(isMarchingOnGPU);
     }
 }
 

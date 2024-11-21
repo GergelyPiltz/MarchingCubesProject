@@ -5,11 +5,12 @@ using UnityEngine;
 
 public class ChunkPool
 {
-    private readonly GameObject poolObj;
-    private readonly Transform poolTransform;
-    private List<CubicChunk> pool;
-    private int inPool;
+    private readonly GameObject poolObj; // The object that holds the script
+    private readonly Transform poolTransform; // The transform of the object that holds the script
+    private List<CubicChunk> pool; // The pool itself
+    private int inPool; // Counter for how many is in the pool
 
+    // Constructor. Creates the object for the pool, sets the transform and initializes the list.
     public ChunkPool()
     {
         pool = new List<CubicChunk>();
@@ -18,6 +19,7 @@ public class ChunkPool
         inPool = 0;
     }
 
+    // Returns an object from the pool and sets its parent to the parameter. If the pool is empty returns a new object.
     public CubicChunk GetFromPool(Transform parent)
     {
         CubicChunk chunk;
@@ -37,6 +39,7 @@ public class ChunkPool
         return chunk;
     }
 
+    // Returns an object to the pool and sets its parent to the poolObject. 
     public void ReturnToPool(CubicChunk chunk)
     {
         inPool++;
